@@ -1,12 +1,32 @@
 params.taxlevel = "S" //level to estimate abundance at [options: D,P,C,O,F,G,S] (default: S)
 params.readlen = 150
 
+threads = params.threads
+
+process dlkraken {
+    tag { }
+    label "python"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "$baseDir/data/kraken_db/", mode: 'copy'
+
+    output:
+        path("minikraken_8GB_20200312/")
+
+    """
+        wget ftp://ftp.ccb.jhu.edu/pub/data/kraken2_dbs/minikraken_8GB_202003.tgz
+        tar -xvzf minikraken_8GB_202003.tgz
+
+    """
+}
+
+
 process runkraken {
     tag { sample_id }
     label "microbiome"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 
@@ -43,12 +63,56 @@ process runkraken {
     """
 }
 
+
+
+process extractfastq {
+    tag { sample_id }
+    label "microbiome"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
+        saveAs: { filename ->
+            if(filename.indexOf(".kraken.raw") > 0) "Kraken/standard/$filename"
+            else if(filename.indexOf(".kraken.report") > 0) "Kraken/standard_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.report") > 0) "Kraken/filtered_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.raw") > 0) "Kraken/filtered/$filename"
+            else {}
+        }
+
+    input:
+       tuple val(sample_id), path(reads)
+       path(krakendb)
+
+
+   output:
+      tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
+      path("${sample_id}.kraken.report"), emit: kraken_report
+      tuple val(sample_id), path("${sample_id}.kraken.filtered.raw"), emit: kraken_filter_raw
+      path("${sample_id}.kraken.filtered.report"), emit: kraken_filter_report
+      tuple val(sample_id), path("${sample_id}_kraken2.krona"), emit: krakenkrona
+      tuple val(sample_id), path("${sample_id}_kraken2_filtered.krona"), emit: krakenkrona_filtered
+
+
+
+     """
+     ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
+     ${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.filtered.report > ${sample_id}.kraken.filtered.raw
+
+    python extract_kraken_reads.py -k s1.output --report s1.report --taxid 75984 --include-children --include-parents \
+        --fastq-output -s1 <read1> -s2 <read2> -o extracted-r1.fastq -o2 extracted-r2.fastq 
+
+    """
+}
+
+python extract_kraken_reads.py -k s1.output --report s1.report --taxid 75984 --include-children --include-parents --fastq-output -s1 <read1> -s2 <read2> -o extracted-r1.fastq -o2 extracted-r2.fastq 
+
+
 process krakenresults {
     tag { }
     label "python"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 

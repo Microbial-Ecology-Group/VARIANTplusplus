@@ -20,8 +20,6 @@ process runqc {
     tag { sample_id }
     label "trimming"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 
@@ -56,11 +54,9 @@ process runqc {
 }
 
 process QCstats {
-    tag { sample_id }
+    tag "Make QC summary file"
     label "python"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 

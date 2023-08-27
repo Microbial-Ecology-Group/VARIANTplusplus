@@ -4,8 +4,6 @@ process fastqc {
     tag "FASTQC on $sample_id"
     label "fastqc"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 
@@ -27,34 +25,33 @@ process fastqc {
 
 
 process multiqc {
-    errorStrategy 'ignore'
+    tag "Running multiQC"
     label "fastqc"
 
-    memory { 2.GB * task.attempt }
-    time { 1.hour * task.attempt }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
     
     publishDir "${params.output}/QC_analysis/", mode: 'copy',
         saveAs: { filename ->
             if(filename.indexOf("multiqc_data/*") > 0) "MultiQC_stats/multiqc_data/$filename"
-            if(filename.indexOf("general_stats.txt") > 0) "MultiQC_stats/$filename"
-            if(filename.indexOf("_report.html") > 0) "MultiQC_stats/$filename"
+            else if(filename.indexOf("general_stats.txt") > 0) "MultiQC_stats/$filename"
+            else if(filename.indexOf("_report.html") > 0) "MultiQC_stats/$filename"
             else {}
         }
     
     input:
-    path 'data*/*' 
-    path config
+        path 'data*/*' 
+        path config
 
     output:
-    path 'multiqc_report.html'
-    path 'multiqc_general_stats.txt'
+        path 'multiqc_report.html'
+        path 'multiqc_general_stats.txt'
+        path 'multiqc_data/'
 
     script:
     """
     cp $config/* .
-    multiqc -v .
+    multiqc -v data* --interactive -f --cl-config "max_table_rows: 3000"
     mv multiqc_data/multiqc_general_stats.txt .
     """
 }
