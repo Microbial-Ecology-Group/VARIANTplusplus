@@ -3,6 +3,8 @@ params.readlen = 150
 
 threads = params.threads
 
+confirmation_db = params.confirmation_db
+
 process dlkraken {
     tag { }
     label "python"
@@ -64,49 +66,68 @@ process runkraken {
 }
 
 
-
-process extractfastq {
+process runConfirmationKraken {
     tag { sample_id }
     label "microbiome"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
 
-    publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
+    publishDir "${params.output}/MicrobiomeAnalysis/Confirmation", mode: 'copy',
         saveAs: { filename ->
-            if(filename.indexOf(".kraken.raw") > 0) "Kraken/standard/$filename"
-            else if(filename.indexOf(".kraken.report") > 0) "Kraken/standard_report/$filename"
-            else if(filename.indexOf(".kraken.filtered.report") > 0) "Kraken/filtered_report/$filename"
-            else if(filename.indexOf(".kraken.filtered.raw") > 0) "Kraken/filtered/$filename"
+            if(filename.indexOf(".confirmation.kraken.raw") > 0) "Kraken/confirmation/$filename"
+            else if(filename.indexOf(".confirmation.kraken.report") > 0) "Kraken/confirmation_report/$filename"
+            else if(filename.indexOf(".confirmation.kraken.filtered.report") > 0) "Kraken/confirmation_filtered_report/$filename"
+            else if(filename.indexOf(".confirmation.kraken.filtered.raw") > 0) "Kraken/confirmation_filtered/$filename"
             else {}
         }
 
     input:
-       tuple val(sample_id), path(reads)
-       path(krakendb)
+        tuple val(sample_id), path(extracted_r1), path(extracted_r2)
+        path(confirmation_db)
 
+    output:
+        tuple val(sample_id), path("${sample_id}.confirmation.kraken.raw"), emit: confirmation_kraken_raw
+        path("${sample_id}.confirmation.kraken.report"), emit: confirmation_kraken_report
+        tuple val(sample_id), path("${sample_id}.confirmation.kraken.filtered.raw"), emit: confirmation_filtered_kraken_raw
+        path("${sample_id}.confirmation.kraken.filtered.report"), emit: confirmation_filtered_kraken_report
 
-   output:
-      tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
-      path("${sample_id}.kraken.report"), emit: kraken_report
-      tuple val(sample_id), path("${sample_id}.kraken.filtered.raw"), emit: kraken_filter_raw
-      path("${sample_id}.kraken.filtered.report"), emit: kraken_filter_report
-      tuple val(sample_id), path("${sample_id}_kraken2.krona"), emit: krakenkrona
-      tuple val(sample_id), path("${sample_id}_kraken2_filtered.krona"), emit: krakenkrona_filtered
+    script:
+    """
+    ${KRAKEN2} --db ${confirmation_db} --paired ${extracted_r1} ${extracted_r2} --threads ${threads} \
+        --report ${sample_id}.confirmation.kraken.report > ${sample_id}.confirmation.kraken.raw
 
+    ${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${extracted_r1} ${extracted_r2} --threads ${threads} \ 
+        --report ${sample_id}.confirmation.kraken.filtered.report > ${sample_id}.confirmation.kraken.filtered.raw
 
-
-     """
-     ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
-     ${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.filtered.report > ${sample_id}.kraken.filtered.raw
-
-    python extract_kraken_reads.py -k s1.output --report s1.report --taxid 75984 --include-children --include-parents \
-        --fastq-output -s1 <read1> -s2 <read2> -o extracted-r1.fastq -o2 extracted-r2.fastq 
 
     """
 }
 
-python extract_kraken_reads.py -k s1.output --report s1.report --taxid 75984 --include-children --include-parents --fastq-output -s1 <read1> -s2 <read2> -o extracted-r1.fastq -o2 extracted-r2.fastq 
+
+process extractKrakenReads {
+    tag { sample_id }
+    label "microbiome"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/MicrobiomeAnalysis/ExtractedReads", mode: 'copy'
+
+    input:
+        tuple val(sample_id), path(reads)
+        path(kraken_raw)
+        path(kraken_report)
+
+    output:
+        tuple val(sample_id), path("extracted-r1.fastq"), path("extracted-r2.fastq")
+
+    script:
+    """
+    python extract_kraken_reads.py -k ${kraken_raw} --report ${kraken_report} --taxid 75984 --include-children --include-parents \
+        --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o extracted-r1.fastq -o2 extracted-r2.fastq
+    """
+}
 
 
 process krakenresults {
@@ -120,14 +141,45 @@ process krakenresults {
 
     input:
         path(kraken_reports)
+        path(kraken_filtered_reports)
 
     output:
         path("kraken_analytic_matrix.csv")
 
     """
     ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${kraken_reports} -o kraken_analytic_matrix.csv
+
+    ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${kraken_filtered_reports} -o kraken_filtered_analytic_matrix.csv
     """
 }
+
+process extractedKrakenResults {
+    tag { }
+    label "python"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/Results/", mode: 'copy'
+
+    input:
+        path(confirmation_kraken_reports)
+        path(confirmation_filtered_kraken_reports)
+
+    output:
+        path("Extracted_species_kraken_analytic_matrix.csv")
+
+    script:
+    """
+    ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${confirmation_kraken_reports} -o Extracted_species_kraken_analytic_matrix.csv
+    
+    ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${confirmation_filtered_kraken_reports} -o Extracted_species_kraken_filtered_analytic_matrix.csv
+
+    """
+}
+
+
+
 
 process runbracken {
     label "microbiome"

@@ -86,8 +86,8 @@ include { FASTQ_RM_HOST_WF } from './subworkflows/fastq_host_removal.nf'
 include { FASTQ_RESISTOME_WF } from './subworkflows/fastq_resistome.nf'
 include { FASTQ_KRAKEN_WF } from './subworkflows/fastq_microbiome.nf'
 include { FASTQ_QIIME2_WF } from './subworkflows/fastq_16S_qiime2.nf'
-include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf'
-
+include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf' // might erase
+include { FASTQ_KRAKEN_SPECIES_WF } from './subworkflows/fastq_microbiome_extract_species.nf'
 
 // Load BAM subworkflows
 include { BAM_RESISTOME_WF } from './subworkflows/bam_resistome.nf'
@@ -153,6 +153,9 @@ workflow {
     }  
     else if(params.pipeline == "kraken") {
        FASTQ_KRAKEN_WF(fastq_files, params.kraken_db)
+    }
+    else if(params.pipeline == "species") {
+       FASTQ_KRAKEN_SPECIES_WF(fastq_files, params.kraken_db, params.confirmation_db)
     }
     else if(params.pipeline == "assembly") {
         FASTQ_SKESA_WF( fastq_files )

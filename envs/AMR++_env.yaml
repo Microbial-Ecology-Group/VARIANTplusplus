@@ -18,3 +18,6 @@ dependencies:
   - biopython = 1.81
   - nextflow
   - git
+  - scikit-learn
+  - ete3
+  - krakentools
