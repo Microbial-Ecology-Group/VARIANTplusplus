@@ -17,9 +17,9 @@ workflow FASTQ_KRAKEN_SINGLE_SPECIES_WF {
             kraken_db_ch = Channel.value(db_path)
             runkraken_extract(read_pairs_ch, kraken_db_ch)
         }
-        krakenresults(runkraken_extract.out.kraken_report.collect(), runkraken_extract.out.kraken_filter_report.collect())
+        krakenresults(runkraken_extract.out.kraken_report.collect())
         // Run kraken again with confirmation db
         runConfirmationKraken(runkraken_extract.out.extracted_reads, params.confirmation_db)
         // Summarize extracted results
-        extractedKrakenResults(runConfirmationKraken.out.confirmation_kraken_report.collect(),runConfirmationKraken.out.confirmation_filtered_kraken_report.collect())
+        extractedKrakenResults(runConfirmationKraken.out.confirmation_kraken_report.collect())
 }
