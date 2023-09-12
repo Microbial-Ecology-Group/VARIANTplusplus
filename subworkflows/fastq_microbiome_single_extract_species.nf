@@ -12,10 +12,10 @@ workflow FASTQ_KRAKEN_SINGLE_SPECIES_WF {
         def db_path = file(default_db_path).exists() ? default_db_path : params.kraken_db
         if (db_path == null) {
             dlkraken()
-            runkraken_extract(read_pairs_ch, dlkraken.out,krakendb_inter)
+            runkraken_extract(read_pairs_ch, dlkraken.out)
         } else {
             kraken_db_ch = Channel.value(db_path)
-            runkraken_extract(read_pairs_ch, kraken_db_ch,krakendb_inter)
+            runkraken_extract(read_pairs_ch, kraken_db_ch)
         }
         krakenresults(runkraken_extract.out.kraken_report.collect(), runkraken_extract.out.kraken_filter_report.collect())
         // Run kraken again with confirmation db

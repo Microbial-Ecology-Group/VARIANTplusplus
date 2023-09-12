@@ -1,5 +1,5 @@
 // Load modules
-include { run_skesa_reads } from '../modules/Assembly/skesa.nff' 
+include { run_skesa_reads } from '../modules/Assembly/skesa.nf' 
 
 // WC trimming
 workflow FASTQ_SKESA_WF {
