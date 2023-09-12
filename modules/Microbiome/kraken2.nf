@@ -3,6 +3,7 @@ params.readlen = 150
 
 threads = params.threads
 
+krakendb_inter = = params.krakendb_inter
 confirmation_db = params.confirmation_db
 
 process dlkraken {
@@ -60,11 +61,52 @@ process runkraken {
      ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
      ${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.filtered.report > ${sample_id}.kraken.filtered.raw
 
-    cut -f 2,3  ${sample_id}.kraken.raw > ${sample_id}_kraken2.krona
-    cut -f 2,3  ${sample_id}.kraken.filtered.raw > ${sample_id}_kraken2_filtered.krona
     """
 }
 
+process runkraken_extract {
+    tag { sample_id }
+    label "microbiome"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
+        saveAs: { filename ->
+            if(filename.indexOf(".kraken.raw") > 0) "Kraken/standard/$filename"
+            else if(filename.indexOf(".kraken.report") > 0) "Kraken/standard_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.report") > 0) "Kraken/filtered_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.raw") > 0) "Kraken/filtered/$filename"
+            else if(filename.indexOf(".fastq") > 0) "Kraken/extracted_reads/$filename"
+            else {}
+        }
+
+    input:
+       tuple val(sample_id), path(reads)
+       path(krakendb)
+       path(krakendb_inter)
+
+
+   output:
+      tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
+      path("${sample_id}.kraken.report"), emit: kraken_report
+      tuple val(sample_id), path("${sample_id}.kraken.filtered.raw"), emit: kraken_filter_raw
+      path("${sample_id}.kraken.filtered.report"), emit: kraken_filter_report
+      tuple val(sample_id), path("extracted-r?.fastq"), emit: extracted_reads
+
+     """
+     ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.temp.kraken.report > ${sample_id}.temp.kraken.raw
+     #${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.temp.kraken.filtered.report > ${sample_id}.temp.kraken.filtered.raw
+
+    extract_kraken_reads.py -k ${sample_id}.temp.kraken.raw --report ${sample_id}.temp.kraken.report --taxid 75984 --include-children --include-parents --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o temp_extracted-r1.fastq -o2 temp_extracted-r2.fastq
+
+     ${KRAKEN2} --db ${krakendb_inter} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
+     ${KRAKEN2} --db ${krakendb_inter} --confidence 1 --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${threads} --report ${sample_id}.kraken.filtered.report > ${sample_id}.kraken.filtered.raw
+
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid 75984 --include-children --include-parents --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o extracted-r1.fastq -o2 extracted-r2.fastq
+
+    """
+}
 
 process runConfirmationKraken {
     tag { sample_id }

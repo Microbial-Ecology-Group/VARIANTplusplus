@@ -155,7 +155,7 @@ workflow {
        FASTQ_KRAKEN_WF(fastq_files, params.kraken_db)
     }
     else if(params.pipeline == "species") {
-       FASTQ_KRAKEN_SPECIES_WF(fastq_files, params.kraken_db, params.confirmation_db)
+       FASTQ_KRAKEN_SPECIES_WF(fastq_files, params.kraken_db, params.krakendb_inter, params.confirmation_db)
     }
     else if(params.pipeline == "assembly") {
         FASTQ_SKESA_WF( fastq_files )
