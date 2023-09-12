@@ -1,11 +1,10 @@
 // Load modules
 include { runkraken_extract ; krakenresults ; dlkraken ;runConfirmationKraken;extractedKrakenResults } from '../modules/Microbiome/kraken2.nf'
 
-workflow FASTQ_KRAKEN_SPECIES_WF {
+workflow FASTQ_KRAKEN_SINGLE_SPECIES_WF {
     take:
         read_pairs_ch
         krakendb
-        krakendb_inter
         confirmation_db
 
     main:

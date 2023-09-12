@@ -87,7 +87,9 @@ include { FASTQ_RESISTOME_WF } from './subworkflows/fastq_resistome.nf'
 include { FASTQ_KRAKEN_WF } from './subworkflows/fastq_microbiome.nf'
 include { FASTQ_QIIME2_WF } from './subworkflows/fastq_16S_qiime2.nf'
 include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf' // might erase
-include { FASTQ_KRAKEN_SPECIES_WF } from './subworkflows/fastq_microbiome_extract_species.nf'
+include { FASTQ_KRAKEN_ONLY_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_extract_species.nf'
+include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
+include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
 
 // Load BAM subworkflows
 include { BAM_RESISTOME_WF } from './subworkflows/bam_resistome.nf'
@@ -154,8 +156,14 @@ workflow {
     else if(params.pipeline == "kraken") {
        FASTQ_KRAKEN_WF(fastq_files, params.kraken_db)
     }
-    else if(params.pipeline == "species") {
-       FASTQ_KRAKEN_SPECIES_WF(fastq_files, params.kraken_db, params.krakendb_inter, params.confirmation_db)
+    else if(params.pipeline == "only_extract") {
+       FASTQ_KRAKEN_EXTRACT_WF(fastq_files, params.kraken_db)
+    }
+    else if(params.pipeline == "single_extract") {
+       FASTQ_KRAKEN_SINGLE_SPECIES_WF(fastq_files, params.kraken_db, params.confirmation_db)
+    }
+    else if(params.pipeline == "double_extract") {
+       FASTQ_KRAKEN_DOUBLE_SPECIES_WF(fastq_files, params.kraken_db, params.krakendb_inter, params.confirmation_db)
     }
     else if(params.pipeline == "assembly") {
         FASTQ_SKESA_WF( fastq_files )

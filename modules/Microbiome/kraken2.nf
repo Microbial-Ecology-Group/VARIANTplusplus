@@ -64,7 +64,7 @@ process runkraken {
     """
 }
 
-process runkraken_extract {
+process runkraken_double_extract {
     tag { sample_id }
     label "microbiome"
 
@@ -107,6 +107,46 @@ process runkraken_extract {
     gzip *Mh_extracted*
 
     rm temp*
+
+    """
+}
+
+process runkraken_extract {
+    tag { sample_id }
+    label "microbiome"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
+        saveAs: { filename ->
+            if(filename.indexOf(".kraken.raw") > 0) "Kraken/standard/$filename"
+            else if(filename.indexOf(".kraken.report") > 0) "Kraken/standard_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.report") > 0) "Kraken/filtered_report/$filename"
+            else if(filename.indexOf(".kraken.filtered.raw") > 0) "Kraken/filtered/$filename"
+            else if(filename.indexOf(".fastq") > 0) "Kraken/extracted_reads/$filename"
+            else {}
+        }
+
+    input:
+       tuple val(sample_id), path(reads)
+       path(krakendb)
+
+
+   output:
+      tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
+      path("${sample_id}.kraken.report"), emit: kraken_report
+      tuple val(sample_id), path("${sample_id}.kraken.filtered.raw"), emit: kraken_filter_raw
+      path("${sample_id}.kraken.filtered.report"), emit: kraken_filter_report
+      tuple val(sample_id), path("extracted_R?.fastq.gz"), emit: extracted_reads
+
+     """
+     ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.temp.kraken.report > ${sample_id}.temp.kraken.raw
+     #${KRAKEN2} --db ${krakendb} --confidence 1 --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.temp.kraken.filtered.report > ${sample_id}.temp.kraken.filtered.raw
+
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid 75984 --include-children --include-parents --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
+
+    gzip *Mh_extracted*
 
     """
 }
