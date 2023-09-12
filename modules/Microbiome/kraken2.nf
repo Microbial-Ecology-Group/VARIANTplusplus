@@ -76,7 +76,7 @@ process runkraken_double_extract {
             else if(filename.indexOf(".nt.kraken.report") > 0) "Kraken/nt_report/$filename"
             else if(filename.indexOf(".family.kraken.report") > 0) "Kraken/family_report/$filename"
             else if(filename.indexOf(".family.kraken.raw") > 0) "Kraken/family_raw/$filename"
-            else if(filename.indexOf(".fastq") > 0) "Kraken/extracted_reads/$filename"
+            else if(filename.indexOf(".fastq") > 0) "Kraken/double_extracted_reads/$filename"
             else {}
         }
 
