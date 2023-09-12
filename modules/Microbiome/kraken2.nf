@@ -92,7 +92,7 @@ process runkraken_extract {
       path("${sample_id}.kraken.report"), emit: kraken_report
       tuple val(sample_id), path("${sample_id}.kraken.filtered.raw"), emit: kraken_filter_raw
       path("${sample_id}.kraken.filtered.report"), emit: kraken_filter_report
-      tuple val(sample_id), path("extracted-r?.fastq"), emit: extracted_reads
+      tuple val(sample_id), path("extracted_R?.fastq.gz"), emit: extracted_reads
 
      """
      ${KRAKEN2} --db ${krakendb} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.temp.kraken.report > ${sample_id}.temp.kraken.raw
@@ -103,7 +103,10 @@ process runkraken_extract {
      ${KRAKEN2} --db ${krakendb_inter} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
      ${KRAKEN2} --db ${krakendb_inter} --confidence 1 --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${threads} --report ${sample_id}.kraken.filtered.report > ${sample_id}.kraken.filtered.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid 75984 --include-children --include-parents --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o extracted-r1.fastq -o2 extracted-r2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid 75984 --include-children --include-parents --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
+    gzip *Mh_extracted*
+
+    rm temp*
 
     """
 }
