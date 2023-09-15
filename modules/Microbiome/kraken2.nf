@@ -207,11 +207,12 @@ process extractedKrakenResults {
         path(confirmation_kraken_reports)
 
     output:
-        path("Extracted_species_kraken_analytic_matrix.csv")
+        path("Strain_classification_kraken_matrix.csv")
+        path("Strain_classification_kraken_matrix_taxonomy.csv")
 
     script:
     """
-    ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${confirmation_kraken_reports} -o Extracted_species_kraken_analytic_matrix.csv
+    ${PYTHON3} $baseDir/bin/kraken2_strains_long_to_wide.py -i ${confirmation_kraken_reports} -o Strain_classification_kraken_matrix.csv
     
 
     """
