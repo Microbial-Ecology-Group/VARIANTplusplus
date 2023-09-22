@@ -61,4 +61,4 @@ if __name__ == '__main__':
     combined_df.to_csv(args.output_file, index=True)
     
     # Write the taxonomic levels DataFrame to a CSV file
-    taxonomy_df.to_csv(f'{args.output_file}_taxonomy.csv', index=True)
+    taxonomy_df.to_csv(f'taxonomy_{args.output_file}', index=True)
