@@ -90,10 +90,11 @@ include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf' // might eras
 include { FASTQ_KRAKEN_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_extract.nf'
 include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
 include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
+include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
+
 
 // Load BAM subworkflows
 include { BAM_RESISTOME_WF } from './subworkflows/bam_resistome.nf'
-
 
 
 workflow {
@@ -158,6 +159,9 @@ workflow {
     }
     else if(params.pipeline == "only_extract") {
        FASTQ_KRAKEN_EXTRACT_WF(fastq_files, params.kraken_db)
+    }
+    else if(params.pipeline == "only_confirmation") {
+       FASTQ_KRAKEN_ONLY_CONFIRMATION_WF(fastq_files, params.confirmation_db)
     }
     else if(params.pipeline == "single_extract") {
        FASTQ_KRAKEN_SINGLE_SPECIES_WF(fastq_files, params.kraken_db, params.confirmation_db)
