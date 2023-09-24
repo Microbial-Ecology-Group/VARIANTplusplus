@@ -20,7 +20,7 @@ def combine_kraken_reports(files):
                         print(f"Skipping line in file {file_path} due to incorrect number of fields: {line.strip()}")
                         continue
                     percentage, count, count_of_taxon, taxon, taxaid, name = parts
-                    if taxon not in ['U', 'D', 'K', 'P', 'C', 'O', 'F', 'G', 'S', 'S1']: #Skip all the potential super families and other weird taxa levels, include strain "S1"
+                    if taxon not in ['U', 'D', 'K', 'P', 'C', 'O', 'F', 'G', 'S', 'S1','S2']: #Skip all the potential super families and other weird taxa levels, include strain "S1"
                         continue
                     taxon_key = name.strip()
                     taxa_dict.setdefault(taxon_key, {})[sample_name] = count_of_taxon  # Use count_of_taxon instead of count
