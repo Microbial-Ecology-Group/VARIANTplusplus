@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import argparse
 
 def combine_kraken_reports(files):
@@ -47,9 +46,9 @@ def calculate_summary_statistics(combined_df, taxonomy_df):
         
         mh_strain_indexes = mh_strain_indexes.intersection(combined_df.index)  # Only keep indexes that exist in combined_df
         
-        # Update: Only count strains with at least 1 count in each sample
-        mh_strains_with_counts = combined_df.loc[mh_strain_indexes]
-        mh_strain_indexes_non_zero = mh_strains_with_counts.loc[(mh_strains_with_counts > 0).all(axis=1)].index
+        # Update: Only count strains with at least 1 count in the current sample
+        mh_strains_with_counts = combined_df.loc[mh_strain_indexes, sample]
+        mh_strain_indexes_non_zero = mh_strains_with_counts[mh_strains_with_counts > 0].index
         
         mh_strain_reads = combined_df.loc[mh_strain_indexes, sample].sum() if not mh_strain_indexes.empty else 0
         number_of_unique_mh_strains = len(mh_strain_indexes_non_zero)
@@ -86,3 +85,4 @@ if __name__ == '__main__':
     
     dataset_summary_df = summary_df.describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max', 'std']]
     dataset_summary_df.to_csv(f'dataset_summary_{args.output_file}', index=True)
+
