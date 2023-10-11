@@ -39,18 +39,31 @@ def calculate_summary_statistics(combined_df, taxonomy_df):
         unclassified_reads = combined_df.loc['unclassified', sample] if 'unclassified' in combined_df.index else 0
         mh_species_df = combined_df[combined_df.index.str.contains('Mannheimia haemolytica')]
         mh_species_reads = mh_species_df[sample].sum()
-        mh_strain_indexes = taxonomy_df[(taxonomy_df.index.str.contains(r'Mannheimia[_\s]haemolytica')) & (taxonomy_df['Level'].isin(['S1', 'S2']))].index 
+        
+        mh_strain_indexes = taxonomy_df[
+            (taxonomy_df.index.str.contains(r'Mannheimia[_\s]haemolytica')) & 
+            (taxonomy_df['Level'].isin(['S1', 'S2']))
+        ].index 
+        
         mh_strain_indexes = mh_strain_indexes.intersection(combined_df.index)  # Only keep indexes that exist in combined_df
+        
+        # Update: Only count strains with at least 1 count in each sample
+        mh_strains_with_counts = combined_df.loc[mh_strain_indexes]
+        mh_strain_indexes_non_zero = mh_strains_with_counts.loc[(mh_strains_with_counts > 0).all(axis=1)].index
+        
         mh_strain_reads = combined_df.loc[mh_strain_indexes, sample].sum() if not mh_strain_indexes.empty else 0
-        number_of_unique_mh_strains = len(mh_strain_indexes)
+        number_of_unique_mh_strains = len(mh_strain_indexes_non_zero)
+        
         pasteurellaceae_reads = combined_df[combined_df.index.str.contains('Pasteurellaceae')][sample].sum()
         
         summary_stats[sample] = {
+            'Total Reads': total_reads,            
             'Number of Unclassified Reads': unclassified_reads,
             'Percent Unclassified Reads': (unclassified_reads / total_reads) * 100,
-            'Percent Reads Classified to Mannheimia haemolytica': (mh_species_reads / total_reads) * 100,
-            'Number of Strains Classified under Mannheimia haemolytica': number_of_unique_mh_strains,
-            'Sum of Hits to Mannheimia haemolytica Strains': mh_strain_reads,
+            'Percent Reads Classified to Mannheimia haemolytica spp label': (mh_species_reads / total_reads) * 100,
+            'Number of PCVs Classified under Mannheimia haemolytica spp': number_of_unique_mh_strains,
+            'Sum of Hits to Mannheimia haemolytica PCVs': mh_strain_reads,
+            'Percent of total Hits to Mannheimia haemolytica PCVs': (mh_strain_reads/ total_reads) * 100,
             'Percent Reads Classified to Pasteurellaceae': (pasteurellaceae_reads / total_reads) * 100,
             'Number of Reads Classified to Pasteurellaceae': pasteurellaceae_reads
         }
