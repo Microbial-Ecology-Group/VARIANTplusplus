@@ -136,7 +136,7 @@ process runkraken_extract {
 
     extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
 
-    gzip *Mh_extracted*
+    pigz --processes ${threads} *Mh_extracted*
 
     """
 }
