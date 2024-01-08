@@ -99,7 +99,8 @@ process runkraken_double_extract {
      ${KRAKEN2} --db ${krakendb_inter} --confidence ${kraken_confidence} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${threads} --report ${sample_id}.family.kraken.report > ${sample_id}.family.kraken.raw
 
     extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_double} --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
-    gzip *Mh_extracted*
+    
+    pigz --processes ${threads} *Mh_extracted*
 
     rm temp*
 

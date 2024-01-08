@@ -36,39 +36,46 @@ def calculate_summary_statistics(combined_df, taxonomy_df):
     for sample in combined_df.columns:
         total_reads = combined_df[sample].sum()
         unclassified_reads = combined_df.loc['unclassified', sample] if 'unclassified' in combined_df.index else 0
-        mh_species_df = combined_df[combined_df.index.str.contains('Mannheimia haemolytica')]
+
+        # Mannheimia haemolytica at the 'S' Level
+        mh_species_df = combined_df[(combined_df.index.str.contains('Mannheimia haemolytica')) & (taxonomy_df.loc[combined_df.index, 'Level'] == 'S')]
         mh_species_reads = mh_species_df[sample].sum()
+
+        # Mannheimia at the 'G' Level
+        mannheimia_g_df = combined_df[(combined_df.index.str.contains('Mannheimia')) & (taxonomy_df.loc[combined_df.index, 'Level'] == 'G')]
+        mannheimia_g_reads = mannheimia_g_df[sample].sum()
+
+        # PSV or Mannheimia haemolytica in 'S1' or 'S2'
+
+        # Ensure taxonomy_df is aligned with combined_df
+        taxonomy_df = taxonomy_df.reindex(combined_df.index)
         
-        mh_strain_indexes = taxonomy_df[
-            (taxonomy_df.index.str.contains(r'Mannheimia[_\s]haemolytica')) & 
-            (taxonomy_df['Level'].isin(['S1', 'S2']))
-        ].index 
-        
-        mh_strain_indexes = mh_strain_indexes.intersection(combined_df.index)  # Only keep indexes that exist in combined_df
-        
-        # Update: Only count strains with at least 1 count in the current sample
-        mh_strains_with_counts = combined_df.loc[mh_strain_indexes, sample]
-        mh_strain_indexes_non_zero = mh_strains_with_counts[mh_strains_with_counts > 0].index
-        
-        mh_strain_reads = combined_df.loc[mh_strain_indexes, sample].sum() if not mh_strain_indexes.empty else 0
-        number_of_unique_mh_strains = len(mh_strain_indexes_non_zero)
-        
-        pasteurellaceae_reads = combined_df[combined_df.index.str.contains('Pasteurellaceae')][sample].sum()
-        
+        # Apply conditions
+        combined_strain_df = combined_df[
+            (taxonomy_df['Level'].isin(['S1', 'S2'])) & 
+            (combined_df.index.str.contains(r'PSV') | combined_df.index.str.contains('Mannheimia haemolytica'))
+        ]
+                
+        combined_strain_reads = combined_strain_df[sample].sum()
+        number_of_unique_combined_strains = len(combined_strain_df)
+
         summary_stats[sample] = {
-            'Total Reads': total_reads,            
+            'Total Reads': total_reads,
             'Number of Unclassified Reads': unclassified_reads,
             'Percent Unclassified Reads': (unclassified_reads / total_reads) * 100,
             'Percent Reads Classified to Mannheimia haemolytica spp label': (mh_species_reads / total_reads) * 100,
-            'Number of PCVs Classified under Mannheimia haemolytica spp': number_of_unique_mh_strains,
-            'Sum of Hits to Mannheimia haemolytica PCVs': mh_strain_reads,
-            'Percent of total Hits to Mannheimia haemolytica PCVs': (mh_strain_reads/ total_reads) * 100,
-            'Percent Reads Classified to Pasteurellaceae': (pasteurellaceae_reads / total_reads) * 100,
-            'Number of Reads Classified to Pasteurellaceae': pasteurellaceae_reads
+            'Number of Combined PSV/Mannheimia haemolytica S1/S2': number_of_unique_combined_strains,
+            'Sum of Hits to Combined PSV/Mannheimia haemolytica S1/S2': combined_strain_reads,
+            'Percent of total Hits to Combined PSV/Mannheimia haemolytica S1/S2': (combined_strain_reads / total_reads) * 100,
+            'Percent Reads Classified to Pasteurellaceae': (combined_df[combined_df.index.str.contains('Pasteurellaceae')][sample].sum() / total_reads) * 100,
+            'Number of Reads Classified to Pasteurellaceae': combined_df[combined_df.index.str.contains('Pasteurellaceae')][sample].sum(),
+            'Number of Reads Classified to Mannheimia haemolytica spp label': mh_species_reads,
+            'Number of Reads Classified as Mannheimia at G Level': mannheimia_g_reads
         }
-    
+
     summary_df = pd.DataFrame.from_dict(summary_stats, orient='index')
     return summary_df
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Combine multiple Kraken reports into a single matrix and compute summary statistics.')
