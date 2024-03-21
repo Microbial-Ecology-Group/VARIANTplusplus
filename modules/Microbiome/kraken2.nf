@@ -135,7 +135,7 @@ process runkraken_extract {
      """
     ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${threads} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
 
     pigz --processes ${threads} *Mh_extracted*
 
@@ -153,6 +153,7 @@ process runConfirmationKraken {
         saveAs: { filename ->
             if(filename.indexOf(".confirmation.kraken.raw") > 0) "Kraken/confirmation/$filename"
             else if(filename.indexOf(".confirmation.kraken.report") > 0) "Kraken/confirmation_report/$filename"
+            else if(filename.indexOf(".confirmation.kraken.minimizer.report") > 0) "Kraken/confirmation_report_minimizer/$filename"
             else {}
         }
 
@@ -163,10 +164,12 @@ process runConfirmationKraken {
     output:
         tuple val(sample_id), path("${sample_id}.confirmation.kraken.raw"), emit: confirmation_kraken_raw
         path("${sample_id}.confirmation.kraken.report"), emit: confirmation_kraken_report
+        path("${sample_id}.confirmation.kraken.minimizer.report"), emit: confirmation_kraken_report_minimizer
 
     script:
     """
-    ${KRAKEN2} --db ${confirmation_db} --confidence ${kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${threads} --report ${sample_id}.confirmation.kraken.report > ${sample_id}.confirmation.kraken.raw
+    ${KRAKEN2} --db ${confirmation_db} --confidence ${kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${threads} --report ${sample_id}.confirmation.kraken.minimizer.report --report-minimizer-data > ${sample_id}.confirmation.kraken.raw
+    cut -f1-3,6-8 ${sample_id}.confirmation.kraken.minimizer.report > ${sample_id}.confirmation.kraken.report
 
     """
 }
