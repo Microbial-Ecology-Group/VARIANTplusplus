@@ -92,11 +92,11 @@ process bwa_all_to_all {
     script:
     """
     for ref_file in ${ref_files.join(' ')}; do
-        ref_base=$(basename $ref_file)
-        ${BWA} mem $ref_file ${reads} -t ${threads} -R '@RG\\tID:$ref_base\\tSM:$ref_base' > ${ref_base}_alignment.sam
-        ${SAMTOOLS} view -@ ${threads} -S -b ${ref_base}_alignment.sam > ${ref_base}_alignment_sorted.bam
-        rm ${ref_base}_alignment.sam
-        ${SAMTOOLS} sort -@ ${threads} -o ${ref_base}_alignment_sorted.bam
+        ref_base=\$(basename \$ref_file)  # Correctly escape parentheses
+        ${BWA} mem \$ref_file ${reads} -t ${threads} -R '@RG\\tID:\$ref_base\\tSM:\$ref_base' > \${ref_base}_alignment.sam
+        ${SAMTOOLS} view -@ ${threads} -S -b \${ref_base}_alignment.sam > \${ref_base}_alignment_sorted.bam
+        rm \${ref_base}_alignment.sam
+        ${SAMTOOLS} sort -@ ${threads} -o \${ref_base}_alignment_sorted.bam
     done
     """
 }

@@ -82,6 +82,7 @@ include { STANDARD_AMRplusplus_wKraken } from './subworkflows/AMR++_standard_wKr
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
 include { FASTQ_TRIM_WF } from './subworkflows/fastq_QC_trimming.nf'
 include { FASTQ_ALIGN_WF } from './subworkflows/fastq_align.nf'
+include { FASTQ_ALIGN_TO_ALL_WF } from './subworkflows/fastq_align_all_to_all.nf'
 include { FASTQ_RM_HOST_WF } from './subworkflows/fastq_host_removal.nf' 
 include { FASTQ_RESISTOME_WF } from './subworkflows/fastq_resistome.nf'
 include { FASTQ_KRAKEN_WF } from './subworkflows/fastq_microbiome.nf'
@@ -91,7 +92,6 @@ include { FASTQ_KRAKEN_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_e
 include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
 include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
 include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
-
 
 // Load BAM subworkflows
 include { BAM_RESISTOME_WF } from './subworkflows/bam_resistome.nf'
@@ -153,6 +153,10 @@ workflow {
     else if(params.pipeline == "align") {
 
         FASTQ_ALIGN_WF( fastq_files, params.amr)
+    }
+    else if(params.pipeline == "align_to_all") {
+
+        FASTQ_ALIGN_TO_ALL_WF( fastq_files, params.amr)
     }  
     else if(params.pipeline == "kraken") {
        FASTQ_KRAKEN_WF(fastq_files, params.kraken_db)
