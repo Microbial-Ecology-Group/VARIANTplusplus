@@ -48,45 +48,60 @@ process bwa_align {
     publishDir "${params.output}/Alignment/BAM_files", mode: "copy",
         saveAs: { filename ->
             if(filename.indexOf("_alignment_sorted.bam") > 0) "Standard/$filename"
-            else if(filename.indexOf("_alignment_dedup.bam") > 0) "Deduped/$filename"
             else {}
         }
 
     input:
         path indexfiles 
-        tuple val(pair_id), path(reads) 
+        tuple val(pair_id), path(reads) // Reads can be single-end or paired-end
 
     output:
         tuple val(pair_id), path("${pair_id}_alignment_sorted.bam"), emit: bwa_bam
-        tuple val(pair_id), path("${pair_id}_alignment_dedup.bam"), emit: bwa_dedup_bam, optional: true
 
     script:
-    if( deduped == "N")
-        """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${threads} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${threads} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
-        rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${threads} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
-        rm ${pair_id}_alignment.bam
-        """
-    else if( deduped == "Y")
-        """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${threads} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${threads} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
-        rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${threads} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
-        rm ${pair_id}_alignment.bam
-        ${SAMTOOLS} fixmate -@ ${threads} ${pair_id}_alignment_sorted.bam ${pair_id}_alignment_sorted_fix.bam
-        ${SAMTOOLS} sort -@ ${threads} ${pair_id}_alignment_sorted_fix.bam -o ${pair_id}_alignment_sorted_fix.sorted.bam
-        rm ${pair_id}_alignment_sorted_fix.bam
-        ${SAMTOOLS} rmdup -S ${pair_id}_alignment_sorted_fix.sorted.bam ${pair_id}_alignment_dedup.bam
-        rm ${pair_id}_alignment_sorted_fix.sorted.bam
-        ${SAMTOOLS} view -@ ${threads} -h -o ${pair_id}_alignment_dedup.sam ${pair_id}_alignment_dedup.bam
-        rm ${pair_id}_alignment_dedup.sam
-        """
-    else
-        error "Invalid deduplication flag --deduped: ${deduped}. Please use --deduped Y for deduplicated counts, or avoid using this flag altogether to skip this error."
+    """
+    ${BWA} mem ${indexfiles[0]} ${reads} -t ${threads} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
+    ${SAMTOOLS} view -@ ${threads} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment_sorted.bam
+    rm ${pair_id}_alignment.sam
+    ${SAMTOOLS} sort -@ ${threads} -o ${pair_id}_alignment_sorted.bam
+    """
 }
+
+process bwa_all_to_all {
+    tag "bwa_all_to_all_${uuid()}" // Unique identifier for each alignment set
+
+    label "alignment"
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    publishDir "${params.output}/Alignment/BAM_files", mode: "copy",
+        saveAs: { filename ->
+            if (filename.indexOf("_alignment_sorted.bam") > 0) "Standard/$filename"
+            else {}
+        }
+
+    input:
+        path indexfiles 
+        path(reads) // Reads (single-end or paired-end)
+        val(ref_files) // List of reference file names
+
+    output:
+        path("*_alignment_sorted.bam") // Allow multiple BAM outputs based on input combinations
+
+    script:
+    """
+    for ref_file in ${ref_files.join(' ')}; do
+        ref_base=$(basename $ref_file)
+        ${BWA} mem $ref_file ${reads} -t ${threads} -R '@RG\\tID:$ref_base\\tSM:$ref_base' > ${ref_base}_alignment.sam
+        ${SAMTOOLS} view -@ ${threads} -S -b ${ref_base}_alignment.sam > ${ref_base}_alignment_sorted.bam
+        rm ${ref_base}_alignment.sam
+        ${SAMTOOLS} sort -@ ${threads} -o ${ref_base}_alignment_sorted.bam
+    done
+    """
+}
+
+
 
 process bwa_rm_contaminant_fq {
     tag { pair_id }
