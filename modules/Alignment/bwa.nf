@@ -15,6 +15,8 @@ threads = params.threads
 
 deduped = params.deduped
 
+themisto_index = params.themisto_index
+
 process index {
     tag "Creating bwa index"
     label "alignment"
@@ -93,6 +95,7 @@ process bwa_align {
 
 process index_genomes {
     tag "${genome.baseName}"
+    scratch true
 
     input:
         tuple val(genomeName), path(genome)
@@ -110,6 +113,7 @@ process index_genomes {
 
 process align_reads {
     tag "${sampleName}_${genomeName}"
+    scratch true
 
     input:
         tuple val(sampleName), path(reads), val(genomeName), path(genome), path(indexFiles)
@@ -121,25 +125,25 @@ process align_reads {
               path("${sampleName}_${genomeName}_coverage.txt"), 
               path("${sampleName}_${genomeName}_processed_idxstats.txt"), 
               path("${sampleName}_${genomeName}_overall_average.txt")
-              // val(coverageValue), emit: alignedData  // Note: Emitting the path to the file
 
-    publishDir "${params.output}/Alignment_results", pattern: "*_alignment_sorted.bam", mode: 'copy'
     publishDir "${params.output}/Alignment_results", pattern: "*_alignment_sorted.dedup.bam", mode: 'copy'
     publishDir "${params.output}/Coverage_results", pattern: "*_depth.txt", mode: 'copy'
     publishDir "${params.output}/Coverage_results", pattern: "*_coverage.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_coverage_stats.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_idxstats.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_detailed_coverage.txt", mode: 'copy'
+    publishDir "${params.output}/Coverage_results", pattern: "*_processed_idxstats.txt", mode: 'copy'
     publishDir "${params.output}/Coverage_results", pattern: "*_overall_average.txt", mode: 'copy'
 
     script:
     """
     echo "Starting alignment for: ${sampleName} with genome: ${genomeName}"
     bwa mem ${genomeName} ${reads.join(' ')} -t ${task.cpus} | \\
-    samtools sort -@ ${task.cpus} -o ${sampleName}_${genomeName}_alignment_sorted.bam
+    samtools sort -@ ${task.cpus} -n -o ${sampleName}_${genomeName}_alignment_sorted_byname.bam
+    
 
-    echo "Removing duplicate reads..."
+    echo "Fixing mate information and removing duplicates..."
+    samtools fixmate -m ${sampleName}_${genomeName}_alignment_sorted_byname.bam ${sampleName}_${genomeName}_alignment_sorted_fixed.bam
+    samtools sort -@ ${task.cpus} -o ${sampleName}_${genomeName}_alignment_sorted.bam ${sampleName}_${genomeName}_alignment_sorted_fixed.bam
     samtools markdup -r ${sampleName}_${genomeName}_alignment_sorted.bam ${sampleName}_${genomeName}_alignment_sorted.dedup.bam
+    rm ${sampleName}_${genomeName}_alignment_sorted_byname.bam ${sampleName}_${genomeName}_alignment_sorted_fixed.bam # Clean up intermediate files
 
     echo "Calculating depth per base..."
     samtools depth ${sampleName}_${genomeName}_alignment_sorted.dedup.bam > ${sampleName}_${genomeName}_depth.txt
@@ -153,13 +157,15 @@ process align_reads {
 
     echo "Calculating IDXStats with Python script..."
     python $baseDir/bin/samtools_idxstats.py -i ${sampleName}_${genomeName}_idxstats.txt -o ${sampleName}_${genomeName}_processed_idxstats.txt
+    rm ${sampleName}_${genomeName}_idxstats.txt  # Clean up intermediate file
 
     echo "Calculating average coverage across genome segments with custom Python script..."
     python $baseDir/bin/parse_genomecov.py -i ${sampleName}_${genomeName}_coverage.txt -o ${sampleName}_${genomeName}_detailed_coverage.txt -a ${sampleName}_${genomeName}_overall_average.txt -s ${sampleName} -g ${genomeName}
+    #rm ${sampleName}_${genomeName}_coverage.txt  # Clean up intermediate file if not needed further
     """
-
-
 }
+
+
 
 process CheckAndStoreCoverage {
     tag "${sampleName}_${genomeName}"
@@ -220,6 +226,7 @@ process MergeFastqFiles {
     """
 }
 
+
 process RunBactopia {
     tag "${sampleName}"
 
@@ -238,6 +245,25 @@ process RunBactopia {
              --datasets ${params.bactopia_datasets} \
              --outdir ${sampleName}_bactopia_output \
              --cpus ${task.cpus}
+    """
+}
+
+process PseudoalignFastqFiles {
+    tag "${sampleName}"
+
+    publishDir "${params.output}/Filtered_pseudoaligned_reads", mode: 'copy'
+
+    input:
+        tuple val(sampleName), path(fastqR1), path(fastqR2)
+        path themisto_index
+
+    output:
+        tuple val(sampleName), path("${sampleName}_pseudoaligned_R1.fastq.gz"), path("${sampleName}_pseudoaligned_R2.fastq.gz"), emit: pseudoalignedFastqFiles
+
+    script:
+    """
+    themisto pseudoalign -q "${fastqR1}" -i ${themisto_index} -t ${threads} --gzip-output-lines --sort-output -o "${sampleName}_pseudoaligned_R1.fastq.gz"
+    themisto pseudoalign -q "${fastqR2}" -i ${themisto_index} -t ${threads} --gzip-output-lines --sort-output -o "${sampleName}_pseudoaligned_R2.fastq.gz"
     """
 }
 

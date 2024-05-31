@@ -1,4 +1,4 @@
-include { index_genomes; align_reads; CheckAndStoreCoverage ; MergeFastqFiles ; RunBactopia  } from '../modules/Alignment/bwa'
+include { index_genomes; align_reads; CheckAndStoreCoverage ; MergeFastqFiles ; RunBactopia } from '../modules/Alignment/bwa'
 
 workflow FASTQ_ALIGN_TO_ALL_WF {
     take:
@@ -10,9 +10,10 @@ workflow FASTQ_ALIGN_TO_ALL_WF {
         assert file(ref_dir).exists() : "Directory ${ref_dir} does not exist. Please check the input directory."
 
         // Create a channel from all .fna files in the reference directory
-        Channel.fromPath("${ref_dir}/*.fna")
-               .map { file -> tuple(file.baseName, file) }
-               .set { genome_files }
+        Channel
+            .fromPath("${ref_dir}/*.{fna.gz,fasta.gz}")
+            .map { file -> tuple(file.baseName, file) }
+            .set { genome_files }
 
         // Process each genome file to create index files
         def indexed_genomes_ch = index_genomes(genome_files)
@@ -25,13 +26,13 @@ workflow FASTQ_ALIGN_TO_ALL_WF {
                                                 combined[0], // sampleName
                                                 combined[1], // readFiles
                                                 combined[2], // genomeName
-                                                combined[4], // fnaFilePath
-                                                combined[3]  // indexFiles
+                                                combined[3], // fnaFilePath
+                                                combined[4]  // indexFiles
                                             )
                                         }
         
         def alignment_output = align_reads(genome_reads_combinations)
-        //alignment_output.view { println "Alignment Output: $it" }
+        
         CheckAndStoreCoverage(alignment_output)
             .set { coverage_results }
 
@@ -39,5 +40,5 @@ workflow FASTQ_ALIGN_TO_ALL_WF {
         def mergedFiles = MergeFastqFiles(coverage_results.storedFastqPairs)
 
         // Run Bactopia
-        //RunBactopia(mergedFiles.mergedFastqFiles
+        // RunBactopia(mergedFiles.mergedFastqFiles)
 }
