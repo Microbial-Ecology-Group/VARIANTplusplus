@@ -187,8 +187,12 @@ workflow {
         FASTQ_ONLY_ALIGN_TO_ALL_WF( fastq_files, params.genome_ref_dir)
     } 
     else if(params.pipeline == "pseudoalign") {
-        FASTQ_PSEUDOALIGN_WF ( fastq_files, params.themisto_index)
+        FASTQ_PSEUDOALIGN_WF ( fastq_files)
     }
+    else if(params.pipeline == "msweep") {
+        FASTQ_MSWEEP_WF( fastq_files )
+    }
+
     else if(params.pipeline == "qiime2") {
         Channel
             .fromFilePairs( params.reads, flat: true )
