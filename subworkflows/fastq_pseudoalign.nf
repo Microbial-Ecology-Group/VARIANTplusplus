@@ -1,11 +1,21 @@
-include { PseudoalignFastqFiles } from '../modules/Alignment/bwa'
+include { PseudoalignFastqFiles ; RunMSweep } from '../modules/Alignment/bwa'
 
 workflow FASTQ_PSEUDOALIGN {
     take:
         reads_ch  // Channel for read pairs
-        themisto_index
+
     main:
 
-        PseudoalignFastqFiles(reads_ch, themisto_index)
+        PseudoalignFastqFiles(reads_ch, file(params.themisto_index))
+
+}
+
+workflow FASTQ_MSWEEP {
+    take:
+        reads_ch  // Channel for read pairs
+
+    main:
+
+        RunMSweep(reads_ch, file(params.clustering_file))
 
 }

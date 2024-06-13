@@ -93,7 +93,11 @@ include { FASTQ_KRAKEN_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_e
 include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
 include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
 include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
-include { FASTQ_PSEUDOALIGN } from './subworkflows/fastq_pseudoalign.nf'
+include { FASTQ_PSEUDOALIGN_WF } from './subworkflows/fastq_pseudoalign.nf'
+include { FASTQ_MSWEEP } from './subworkflows/fastq_pseudoalign.nf'
+
+
+
 
 
 // Load BAM subworkflows
@@ -183,7 +187,7 @@ workflow {
         FASTQ_ONLY_ALIGN_TO_ALL_WF( fastq_files, params.genome_ref_dir)
     } 
     else if(params.pipeline == "pseudoalign") {
-        FASTQ_ONLY_ALIGN_TO_ALL_WF( fastq_files, params.themisto_index)
+        FASTQ_PSEUDOALIGN_WF ( fastq_files, params.themisto_index)
     }
     else if(params.pipeline == "qiime2") {
         Channel

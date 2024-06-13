@@ -17,6 +17,8 @@ deduped = params.deduped
 
 themisto_index = params.themisto_index
 
+clustering_file = params.clustering_file
+
 process index {
     tag "Creating bwa index"
     label "alignment"
@@ -254,7 +256,7 @@ process PseudoalignFastqFiles {
     publishDir "${params.output}/Filtered_pseudoaligned_reads", mode: 'copy'
 
     input:
-        tuple val(sampleName), path(fastqR1), path(fastqR2)
+        tuple val(sampleName), path(reads)
         path themisto_index
 
     output:
@@ -262,11 +264,30 @@ process PseudoalignFastqFiles {
 
     script:
     """
-    themisto pseudoalign -q "${fastqR1}" -i ${themisto_index} -t ${threads} --gzip-output-lines --sort-output -o "${sampleName}_pseudoaligned_R1.fastq.gz"
-    themisto pseudoalign -q "${fastqR2}" -i ${themisto_index} -t ${threads} --gzip-output-lines --sort-output -o "${sampleName}_pseudoaligned_R2.fastq.gz"
+    mkdir tmp
+    themisto pseudoalign -q "${reads[0]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R1.fastq"
+    themisto pseudoalign -q "${reads[1]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R2.fastq"
+    rm -rf tmp/
     """
 }
 
+process RunMSweep {
+    tag "${sampleName}"
+
+    publishDir "${params.output}/mSWEEP_results", mode: 'copy'
+
+    input:
+        tuple val(sampleName), path(pseudoaligned)
+        path clustering_file
+
+    output:
+        tuple val(sampleName), path("${sampleName}.msweep.txt"), emit: msweepResults
+
+    script:
+    """
+    mSWEEP --themisto-1 "${pseudoaligned[0]}" --themisto-2 "${pseudoaligned[1]}" -i ${clustering_file} -t ${threads} -o ${sampleName}.msweep.txt --verbose
+    """
+}
 
 
 process bwa_rm_contaminant_fq {
