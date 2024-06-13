@@ -1,6 +1,6 @@
 include { PseudoalignFastqFiles ; RunMSweep } from '../modules/Alignment/bwa'
 
-workflow FASTQ_PSEUDOALIGN {
+workflow FASTQ_PSEUDOALIGN_WF {
     take:
         reads_ch  // Channel for read pairs
 
@@ -10,7 +10,7 @@ workflow FASTQ_PSEUDOALIGN {
 
 }
 
-workflow FASTQ_MSWEEP {
+workflow FASTQ_MSWEEP_WF {
     take:
         reads_ch  // Channel for read pairs
 

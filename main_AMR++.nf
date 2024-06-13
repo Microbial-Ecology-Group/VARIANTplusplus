@@ -94,7 +94,7 @@ include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome
 include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
 include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
 include { FASTQ_PSEUDOALIGN_WF } from './subworkflows/fastq_pseudoalign.nf'
-include { FASTQ_MSWEEP } from './subworkflows/fastq_pseudoalign.nf'
+include { FASTQ_MSWEEP_WF } from './subworkflows/fastq_pseudoalign.nf'
 
 
 
