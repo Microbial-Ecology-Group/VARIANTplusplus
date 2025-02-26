@@ -109,7 +109,7 @@ process runkraken_double_extract {
 
 process runkraken_extract {
     tag { sample_id }
-    label "microbiome"
+    label "large_memory"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3

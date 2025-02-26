@@ -74,9 +74,6 @@ Channel
 params.pipeline = null
 
 // Load main pipeline workflows
-include { STANDARD_AMRplusplus } from './subworkflows/AMR++_standard.nf' 
-include { FAST_AMRplusplus } from './subworkflows/AMR++_fast.nf'
-include { STANDARD_AMRplusplus_wKraken } from './subworkflows/AMR++_standard_wKraken.nf'
 
 // Load subworkflows
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
@@ -85,9 +82,7 @@ include { FASTQ_ALIGN_WF } from './subworkflows/fastq_align.nf'
 include { FASTQ_ALIGN_TO_ALL_WF } from './subworkflows/fastq_align_all_to_all.nf'
 include { FASTQ_ONLY_ALIGN_TO_ALL_WF } from './subworkflows/fastq_only_align_all_to_all.nf'
 include { FASTQ_RM_HOST_WF } from './subworkflows/fastq_host_removal.nf' 
-include { FASTQ_RESISTOME_WF } from './subworkflows/fastq_resistome.nf'
 include { FASTQ_KRAKEN_WF } from './subworkflows/fastq_microbiome.nf'
-include { FASTQ_QIIME2_WF } from './subworkflows/fastq_16S_qiime2.nf'
 include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf' // might erase
 include { FASTQ_KRAKEN_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_extract.nf'
 include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
@@ -128,19 +123,6 @@ workflow {
         //run with demo params, use params.config
         FAST_AMRplusplus(fastq_files, params.amr, params.annotation)
     } 
-    else if(params.pipeline == "standard_AMR") {
-
-        STANDARD_AMRplusplus(fastq_files,params.host, params.amr, params.annotation)
-        
-    } 
-    else if(params.pipeline == "fast_AMR") {
-
-        FAST_AMRplusplus(fastq_files, params.amr, params.annotation)
-    } 
-    else if(params.pipeline == "standard_AMR_wKraken") {
-
-        STANDARD_AMRplusplus_wKraken(fastq_files,params.host, params.amr, params.annotation, params.kraken_db)
-    } 
     else if(params.pipeline == "eval_qc") {
 
         FASTQ_QC_WF( fastq_files )
@@ -153,10 +135,6 @@ workflow {
 
         FASTQ_RM_HOST_WF(params.host, fastq_files )
     } 
-    else if(params.pipeline == "resistome") {
-
-        FASTQ_RESISTOME_WF( fastq_files, params.amr, params.annotation )
-    }  
     else if(params.pipeline == "align") {
 
         FASTQ_ALIGN_WF( fastq_files, params.amr)
