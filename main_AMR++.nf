@@ -94,12 +94,6 @@ include { FASTQ_DEDUP_WF } from './subworkflows/fastq_dedup.nf'
 
 
 
-
-
-// Load BAM subworkflows
-include { BAM_RESISTOME_WF } from './subworkflows/bam_resistome.nf'
-
-
 workflow {
     if (params.pipeline == null || params.pipeline == "help") {
 
@@ -112,7 +106,7 @@ workflow {
         ===================================
         """
         //run with demo params, use params.config
-        FAST_AMRplusplus(fastq_files, params.amr, params.annotation)
+        FASTQ_DEDUP_WF(fastq_files)
         
     }
     else if(params.pipeline == "demo") {
@@ -122,11 +116,10 @@ workflow {
         ===================================
         """
         //run with demo params, use params.config
-        FAST_AMRplusplus(fastq_files, params.amr, params.annotation)
+        FASTQ_DEDUP_WF(fastq_files)
     } 
-    FASTQ_DEDUP_WF
     else if(params.pipeline == "dedup") {
-        
+
         FASTQ_DEDUP_WF( fastq_files )
     } 
     else if(params.pipeline == "eval_qc") {
@@ -189,27 +182,6 @@ workflow {
             .set { ch_manifest }
         
         FASTQ_QIIME2_WF( ch_manifest , params.dada2_db)
-    }
-    else if(params.pipeline == "bam_resistome"){
-        log.info """\
-        =======================================
-        Running resistome analysis on bam files
-        with bwa alignments to the MEGARes db.
-
-        Use the --bam_files argument and change
-        the --output flag to keep track of your
-        standard vs deduped data.
-        =======================================
-        """
-        Channel
-            .fromPath(params.bam_files)
-            .ifEmpty { exit 1, "bam files could not be found: ${params.bam_files}" }
-            .map { file ->
-            def modified_baseName = file.baseName.split('\\.')[0]
-              tuple(modified_baseName, file)
-                }
-            .set {bam_files_ch}
-        BAM_RESISTOME_WF( bam_files_ch , params.amr, params.annotation )
     }
     else {
             println "ERROR ################################################################"
