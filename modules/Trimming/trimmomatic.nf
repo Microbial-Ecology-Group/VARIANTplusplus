@@ -6,10 +6,6 @@ if( params.adapters ) {
 }
 
 threads = params.threads
-min = params.min
-max = params.max
-skip = params.skip
-samples = params.samples
 
 leading = params.leading
 trailing = params.trailing

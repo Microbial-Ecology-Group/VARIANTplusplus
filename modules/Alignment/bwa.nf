@@ -1,19 +1,8 @@
-include { reference_error ; amr_error ; annotation_error } from "$baseDir/modules/nf-functions.nf"
-
-
-if( params.amr ) {
-    amr = file(params.amr)
-    if( !amr.exists() ) return amr_error(amr)
-}
-if( params.annotation ) {
-    annotation = file(params.annotation)
-    if( !annotation.exists() ) return annotation_error(annotation)
-}
 
 
 threads = params.threads
 
-deduped = params.deduped
+dedup_sam = params.dedup_sam
 
 themisto_index = params.themisto_index
 

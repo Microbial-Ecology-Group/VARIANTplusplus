@@ -59,18 +59,23 @@ process DeduplicateReadsBBMap {
 
     script:
     """
-    mkdir -p Deduped_reads
-
-    # Run BBMap's dedupe.sh for paired-end reads (supports gzipped input/output)
+    # Run BBMap's dedupe.sh separately for R1 and R2 reads
     dedupe.sh \
-        in1=${reads[0]} \
-        in2=${reads[1]} \
-        out1=Deduped_reads/${sample_id}_R1_dedup.fastq.gz \
-        out2=Deduped_reads/${sample_id}_R2_dedup.fastq.gz \
-        dupesubs=0 \
-        overwrite=true \
+        in=${reads[0]} \
+        out=${sample_id}_R1_dedup.fastq.gz \
         threads=${task.cpus} \
-        > Deduped_reads/${sample_id}.dedupe.stats.log 2>&1
+        > ${sample_id}_R1.dedupe.stats.log 2>&1
+
+    dedupe.sh \
+        in=${reads[1]} \
+        out=${sample_id}_R2_dedup.fastq.gz \
+        threads=${task.cpus} \
+        > ${sample_id}_R2.dedupe.stats.log 2>&1
+
+    # Merge logs
+    cat ${sample_id}_R1.dedupe.stats.log ${sample_id}_R2.dedupe.stats.log > ${sample_id}.dedupe.stats.log
+    rm ${sample_id}_R1.dedupe.stats.log ${sample_id}_R2.dedupe.stats.log
     """
 }
+
 
