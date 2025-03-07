@@ -91,7 +91,7 @@ include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbi
 include { FASTQ_PSEUDOALIGN_WF } from './subworkflows/fastq_pseudoalign.nf'
 include { FASTQ_MSWEEP_WF } from './subworkflows/fastq_pseudoalign.nf'
 include { FASTQ_DEDUP_WF } from './subworkflows/fastq_dedup.nf'
-
+include { FASTQ_DEDUP_BBMAP_WF } from './subworkflows/fastq_dedup.nf'
 
 
 workflow {
@@ -121,6 +121,10 @@ workflow {
     else if(params.pipeline == "dedup") {
 
         FASTQ_DEDUP_WF( fastq_files )
+    } 
+    else if(params.pipeline == "dedup_bbmap") {
+
+        FASTQ_DEDUP_BBMAP_WF( fastq_files )
     } 
     else if(params.pipeline == "eval_qc") {
 

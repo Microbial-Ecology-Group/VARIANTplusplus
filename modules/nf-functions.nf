@@ -13,12 +13,6 @@ def adapter_error(def input) {
     return 1
 }
 
-def amr_error(def input) {
-    println ""
-    println "[params.amr] fail to open: '" + input + "' : No such file or directory"
-    println ""
-    return 1
-}
 
 def annotation_error(def input) {
     println ""
