@@ -21,3 +21,4 @@ dependencies:
   - seqtk=1.3
   - msweep
   - cd-hit
+  - bbmap
