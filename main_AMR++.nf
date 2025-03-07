@@ -90,6 +90,7 @@ include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome
 include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
 include { FASTQ_PSEUDOALIGN_WF } from './subworkflows/fastq_pseudoalign.nf'
 include { FASTQ_MSWEEP_WF } from './subworkflows/fastq_pseudoalign.nf'
+include { FASTQ_DEDUP_WF } from './subworkflows/fastq_dedup.nf'
 
 
 
@@ -122,6 +123,11 @@ workflow {
         """
         //run with demo params, use params.config
         FAST_AMRplusplus(fastq_files, params.amr, params.annotation)
+    } 
+    FASTQ_DEDUP_WF
+    else if(params.pipeline == "dedup") {
+        
+        FASTQ_DEDUP_WF( fastq_files )
     } 
     else if(params.pipeline == "eval_qc") {
 

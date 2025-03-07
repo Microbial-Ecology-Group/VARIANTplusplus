@@ -19,4 +19,5 @@ dependencies:
   - nextflow
   - git
   - seqtk=1.3
-  - themisto
+  - msweep
+  - cd-hit
