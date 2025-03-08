@@ -27,8 +27,8 @@ process DeduplicateReads {
     gunzip -c ${reads[1]} > ${sample_id}_R2.fastq
 
     # Run CD-HIT-EST on R1 and R2 separately at 100% identity
-    cd-hit-est -i ${sample_id}_R1.fastq -o ${sample_id}_R1_dedup.fastq -T ${threads} -d 1000 -c 1.00 -n 10 > ${sample_id}.cdhit.stats.log
-    cd-hit-est -i ${sample_id}_R2.fastq -o ${sample_id}_R2_dedup.fastq -T ${threads} -d 1000 -c 1.00 -n 10 >> ${sample_id}.cdhit.stats.log
+    cd-hit-est -i ${sample_id}_R1.fastq -o ${sample_id}_R1_dedup.fastq -M 0 -T ${threads} -d 1000 -c 1.00 -n 10 > ${sample_id}.cdhit.stats.log
+    cd-hit-est -i ${sample_id}_R2.fastq -o ${sample_id}_R2_dedup.fastq -M 0 -T ${threads} -d 1000 -c 1.00 -n 10 >> ${sample_id}.cdhit.stats.log
 
     # Gzip the deduplicated output
     gzip ${sample_id}_R1_dedup.fastq

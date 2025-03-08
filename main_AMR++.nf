@@ -118,11 +118,11 @@ workflow {
         //run with demo params, use params.config
         FASTQ_DEDUP_WF(fastq_files)
     } 
-    else if(params.pipeline == "dedup") {
+    else if(params.pipeline == "dedup_cdhit") {
 
         FASTQ_DEDUP_WF( fastq_files )
     } 
-    else if(params.pipeline == "dedup_bbmap") {
+    else if(params.pipeline == "dedup") {
 
         FASTQ_DEDUP_BBMAP_WF( fastq_files )
     } 
