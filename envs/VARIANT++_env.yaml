@@ -21,4 +21,7 @@ dependencies:
   - msweep
   - cd-hit
   - bbmap
+  - biopython
+  - krakentools
+  - insilicoseq
   - nextflow

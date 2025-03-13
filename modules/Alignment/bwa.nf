@@ -254,8 +254,8 @@ process PseudoalignFastqFiles {
     script:
     """
     mkdir -p tmp
-    themisto pseudoalign -q "${reads[0]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R1.fastq"
-    themisto pseudoalign -q "${reads[1]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R2.fastq"
+    $baseDir/bin/themisto pseudoalign -q "${reads[0]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R1.fastq"
+    $baseDir/bin/themisto pseudoalign -q "${reads[1]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R2.fastq"
     rm -rf tmp/
     """
 }
