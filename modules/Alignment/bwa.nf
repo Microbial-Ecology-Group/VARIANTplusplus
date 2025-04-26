@@ -1,5 +1,3 @@
-
-
 threads = params.threads
 
 dedup_sam = params.dedup_sam
@@ -260,6 +258,50 @@ process PseudoalignFastqFiles {
     """
 }
 
+
+process MergedPseudoalignFastqFiles {
+
+    tag { sample_id }
+    label "large_memory"
+
+    publishDir "${params.output}/Filtered_pseudoaligned_reads", mode:'copy'
+
+    input:
+        tuple val(sample_id),
+              path(merged_fastq),          //  …_Mh_extracted_merged.fastq.gz
+              path(unmerged_fastq)         //  …_Mh_extracted_unmerged.fastq.gz
+        path themisto_index
+
+    output:
+        tuple val(sample_id),
+              path("${sample_id}_pseudoaligned_merged.fastq.gz"),
+              path("${sample_id}_pseudoaligned_unmerged.fastq.gz"),
+              emit: pseudoalignedFastqFiles
+
+    script:
+    """
+    mkdir -p tmp
+
+    # ── merged stream ─────────────────────────────────────────
+    ${baseDir}/bin/themisto pseudoalign \
+        -q ${merged_fastq} \
+        -i ${themisto_index}/2025_themisto_index_no \
+        --temp-dir tmp -t ${threads} \
+        --gzip-output --sort-output-lines \
+        -o ${sample_id}_pseudoaligned_merged.fastq
+
+    # ── un-merged stream (now interleaved single FASTQ) ───────
+    ${baseDir}/bin/themisto pseudoalign \
+        -q ${unmerged_fastq} \
+        -i ${themisto_index}/2025_themisto_index_no \
+        --temp-dir tmp -t ${threads} \
+        --gzip-output --sort-output-lines \
+        -o ${sample_id}_pseudoaligned_unmerged.fastq
+
+    rm -rf tmp
+    """
+}
+
 process RunMSweep {
     tag "${sampleName}"
 
@@ -279,65 +321,123 @@ process RunMSweep {
 }
 
 
-process bwa_rm_contaminant_fq {
-    tag { pair_id }
-    label "alignment"
+process MergedRunMSweep {
 
-    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
-    maxRetries 3 
- 
-    publishDir "${params.output}/HostRemoval", mode: "copy",
-        saveAs: { filename ->
-            if(filename.indexOf("fastq.gz") > 0) "NonHostFastq/$filename"
-            else {}
-        }
+    tag { sample_id }
+    label "small_memory"
+
+    publishDir "${params.output}/mSWEEP_results", mode: 'copy'
 
     input:
-        path indexfiles
-        tuple val(pair_id), path(reads) 
+        tuple val(sample_id),
+              path(pseudo_merged),        //  …pseudoaligned_merged.fastq.gz
+              path(pseudo_unmerged)       //  …pseudoaligned_unmerged.fastq.gz
+        path clustering_file
 
     output:
-        tuple val(pair_id), path("${pair_id}.non.host.R*.fastq.gz"), emit: nonhost_reads
-        path("${pair_id}.samtools.idxstats"), emit: host_rm_stats
-    
-    """
-    ${BWA} mem ${indexfiles[0]} ${reads[0]} ${reads[1]} -t ${threads} > ${pair_id}.host.sam
-    ${SAMTOOLS} view -bS ${pair_id}.host.sam | ${SAMTOOLS} sort -@ ${threads} -o ${pair_id}.host.sorted.bam
-    rm ${pair_id}.host.sam
-    ${SAMTOOLS} index ${pair_id}.host.sorted.bam && ${SAMTOOLS} idxstats ${pair_id}.host.sorted.bam > ${pair_id}.samtools.idxstats
-    ${SAMTOOLS} view -h -f 12 -b ${pair_id}.host.sorted.bam -o ${pair_id}.host.sorted.removed.bam
-    ${SAMTOOLS} sort -n -@ ${threads} ${pair_id}.host.sorted.removed.bam -o ${pair_id}.host.resorted.removed.bam
-    ${SAMTOOLS}  \
-       fastq -@ ${threads} -c 6  \
-      ${pair_id}.host.resorted.removed.bam \
-      -1 ${pair_id}.non.host.R1.fastq.gz \
-      -2 ${pair_id}.non.host.R2.fastq.gz \
-      -0 /dev/null -s /dev/null -n
+        path("${sample_id}.merged.msweep_abundances.txt"),   emit: msweep_merged
+        path("${sample_id}.unmerged.msweep_abundances.txt"), emit: msweep_unmerged
 
-    rm *.bam
+    script:
     """
+    # ── merged read‐set ─────────────────────────────────────────
+    mSWEEP --themisto ${pseudo_merged} \
+           -i ${clustering_file} \
+           -t ${threads} \
+           --themisto-mode intersection \
+           -o ${sample_id}.merged.msweep \
+           --verbose
 
+    # ── unmerged read‐set ───────────────────────────────────────
+    mSWEEP --themisto ${pseudo_unmerged} \
+           -i ${clustering_file} \
+           -t ${threads} \
+           --themisto-mode intersection \
+           -o ${sample_id}.unmerged.msweep \
+           --verbose
+    """
 }
 
-process HostRemovalStats {
-    tag { sample_id }
-    label "alignment"
+process MergedParsemSweepResults {
+    tag "parse_msweep"
+    label "small_memory"                         
 
-    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
-    maxRetries 3 
-
-    publishDir "${params.output}/Results", mode: "copy",
-        saveAs: { filename ->
-            if(filename.indexOf(".stats") > 0) "Stats/$filename"
-        }
+    publishDir "${params.output}/Results", mode: 'copy'
 
     input:
-        file(host_rm_stats)
+        path(msweep_files)                 
 
     output:
-        path("host.removal.stats"), emit: combo_host_rm_stats
+        path("*_summary.tsv"),      emit: msweep_summary
+        path("*_count_matrix.tsv"), emit: msweep_matrix
 
+    script:
     """
-    ${PYTHON3} $baseDir/bin/samtools_idxstats.py -i ${host_rm_stats} -o host.removal.stats
+
+    python $baseDir/bin/parse_msweep_results.py \
+        --msweep_dir . \
+        --reads_dir  $baseDir/${params.output}/HostRemoval/NonHostFastq/ \
+        -o mSweep_results \
+        --filter-mode sub_count_rel_abund \
+        --rel-thr 0.01
+    """
+}
+
+
+process bwa_rm_contaminant_fq {
+
+    tag   { pair_id }
+    label "alignment"
+    maxRetries 3
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+
+    publishDir "${params.output}/HostRemoval", mode:'copy',
+        saveAs:{ fn -> fn.endsWith('.fastq.gz') ? "NonHostFastq/$fn" : null }
+
+    input:
+        path  indexfiles
+        tuple val(pair_id), path(reads)          // 1 or 2 files
+
+    output:
+        tuple val(pair_id), path("${pair_id}.non.host.fastq.gz"), emit: nonhost_reads
+        tuple val(pair_id), path("${pair_id}.samtools.idxstats"),  emit: host_rm_stats
+
+    script:
+    """
+
+    ${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${threads} \
+            | ${SAMTOOLS} sort -@ ${threads} -o ${pair_id}.host.sorted.bam
+
+
+    ${SAMTOOLS} index   ${pair_id}.host.sorted.bam
+    ${SAMTOOLS} idxstats ${pair_id}.host.sorted.bam > ${pair_id}.samtools.idxstats
+
+    # keep ALL unmapped reads (flag 4) → one interleaved FASTQ-gz
+    ${SAMTOOLS} view -b -f 4 ${pair_id}.host.sorted.bam 
+    ${SAMTOOLS} fastq -@ ${threads} -f 4 \
+    ${pair_id}.host.sorted.bam \
+        | pigz -p ${threads} -c \
+        > ${pair_id}.non.host.fastq.gz
+    """
+}
+
+
+process HostRemovalStats {
+
+    tag { "${sample_id}_${idxstats.name.tokenize('_')[-2]}" }   // merged / unmerged
+
+    publishDir "${params.output}/Results/Stats", mode: 'copy'
+
+    input:
+        tuple val(sample_id), path(idxstats)        // idxstats is ONE Path
+
+    output:
+        path "${sample_id}_${idxstats.name}.summary" , emit: stats_summary
+
+    script:
+    """
+    ${PYTHON3} $baseDir/bin/samtools_idxstats.py \
+        -i ${idxstats} \
+        -o ${sample_id}_${idxstats.name}.summary
     """
 }

@@ -78,4 +78,45 @@ process DeduplicateReadsBBMap {
     """
 }
 
+process MergedDeduplicateReadsBBMap {
+
+    tag   { sample_id }
+    label "small_memory_medium_time"
+
+    publishDir "${params.output}/Deduped_reads",
+               mode:'copy', pattern:'*.fastq.gz'
+
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
+
+    input:
+        tuple val(sample_id),
+              path(merged_fq),        // one file
+              path(unmerged_fq)       // one file
+
+    output:
+        tuple val(sample_id), path("${sample_id}_merged.dedup.fastq.gz"),   emit: dedup_merged
+        tuple val(sample_id), path("${sample_id}_unmerged.dedup.fastq.gz"), emit: dedup_unmerged
+        path("${sample_id}.dedupe.stats.log"),                              emit: dedupe_stats
+
+    script:
+    """
+    # ── deduplicate MERGED file ──────────────────────────────────────────
+    dedupe.sh in=${merged_fq} \
+              out=${sample_id}_merged.dedup.fastq.gz \
+              threads=${task.cpus} \
+        > ${sample_id}_merged.dedupe.log 2>&1
+
+    # ── deduplicate UNMERGED file (already inter-leaved) ────────────────
+    dedupe.sh in=${unmerged_fq} \
+              out=${sample_id}_unmerged.dedup.fastq.gz \
+              threads=${task.cpus} \
+        > ${sample_id}_unmerged.dedupe.log 2>&1
+
+    # ── merge the per-file logs into one stats file ─────────────────────
+    cat ${sample_id}_merged.dedupe.log ${sample_id}_unmerged.dedupe.log \
+        >  ${sample_id}.dedupe.stats.log
+    rm  ${sample_id}_merged.dedupe.log  ${sample_id}_unmerged.dedupe.log
+    """
+}
 

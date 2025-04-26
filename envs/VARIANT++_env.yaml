@@ -19,9 +19,9 @@ dependencies:
   - git
   - seqtk=1.3
   - msweep
-  - cd-hit
   - bbmap
   - biopython
   - krakentools
   - insilicoseq
   - nextflow
+  - flash

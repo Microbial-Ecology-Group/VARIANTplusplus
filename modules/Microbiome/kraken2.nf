@@ -23,12 +23,15 @@ process dlkraken {
     publishDir "$baseDir/data/kraken_db/", mode: 'copy'
 
     output:
-        path("minikraken_8GB_20200312/")
+        path("k2_standard_08gb_20250402/")
 
     """
-        wget ftp://ftp.ccb.jhu.edu/pub/data/kraken2_dbs/minikraken_8GB_202003.tgz
-        tar -xvzf minikraken_8GB_202003.tgz
+    wget https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20250402.tar.gz
+    # make a clean target directory
+    mkdir -p k2_standard_08gb_20250402
 
+    # extract all files into that folder, stripping the archive’s top directory
+    tar -xzvf k2_standard_08gb_20250402.tar.gz -C k2_standard_08gb_20250402/ 
     """
 }
 
@@ -142,6 +145,68 @@ process runkraken_extract {
     """
 }
 
+
+process runkraken_merged_extract {
+
+    tag   { sample_id }
+    label "large_memory"
+
+    publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
+        saveAs: { fn ->
+            if      (fn.endsWith('.kraken.raw'))   "Kraken/standard/$fn"
+            else if (fn.endsWith('.kraken.report'))"Kraken/standard_report/$fn"
+            else if (fn.endsWith('.fastq.gz'))     "Kraken/extracted_reads/$fn"
+        }
+
+    input:
+        tuple val(sample_id), path(merged), path(unmerged)   // now BOTH are single files
+        val krakendb
+
+    output:
+        tuple val(sample_id), path("${sample_id}.merged.kraken.raw"),      emit: kraken_raw_merged
+        path("${sample_id}.merged.kraken.report"),                         emit: kraken_report_merged
+        tuple val(sample_id), path("${sample_id}_Mh_extracted_merged.fastq.gz"), emit: extracted_merged
+
+        tuple val(sample_id), path("${sample_id}.unmerged.kraken.raw"),    emit: kraken_raw_unmerged
+        path("${sample_id}.unmerged.kraken.report"),                       emit: kraken_report_unmerged
+        tuple val(sample_id), path("${sample_id}_Mh_extracted_unmerged.fastq.gz"), emit: extracted_unmerged
+
+    script:
+    """
+    # ── merged file ─────────────────────────────────────────────
+    ${KRAKEN2} --db ${krakendb} --memory-mapping --confidence ${kraken_confidence} \
+               --threads ${threads} \
+               --report ${sample_id}.merged.kraken.report \
+               ${merged} \
+               > ${sample_id}.merged.kraken.raw
+
+    extract_kraken_reads.py -k ${sample_id}.merged.kraken.raw \
+        --max 1000000000 --report ${sample_id}.merged.kraken.report \
+        --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
+        --fastq-output -s ${merged} \
+        -o ${sample_id}_Mh_extracted_merged.fastq
+
+    pigz --processes ${threads} ${sample_id}_Mh_extracted_merged.fastq
+
+    # ── unmerged (now interleaved single) ───────────────────────
+    ${KRAKEN2} --db ${krakendb} --memory-mapping --confidence ${kraken_confidence} \
+               --threads ${threads} \
+               --report ${sample_id}.unmerged.kraken.report \
+               ${unmerged} \
+               > ${sample_id}.unmerged.kraken.raw
+
+    extract_kraken_reads.py -k ${sample_id}.unmerged.kraken.raw \
+        --max 1000000000 --report ${sample_id}.unmerged.kraken.report \
+        --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
+        --fastq-output -s ${unmerged} \
+        -o ${sample_id}_Mh_extracted_unmerged.fastq
+
+    pigz --processes ${threads} ${sample_id}_Mh_extracted_unmerged.fastq
+    """
+}
+
+
+
 process runConfirmationKraken {
     tag { sample_id }
     label "microbiome"
@@ -168,7 +233,7 @@ process runConfirmationKraken {
 
     script:
     """
-    ${KRAKEN2} --db ${confirmation_db} --confidence ${kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${threads} --report ${sample_id}.confirmation.kraken.minimizer.report --report-minimizer-data > ${sample_id}.confirmation.kraken.raw
+    ${KRAKEN2} --db ${confirmation_db} --memory-mapping --confidence ${kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${threads} --report ${sample_id}.confirmation.kraken.minimizer.report --report-minimizer-data > ${sample_id}.confirmation.kraken.raw
     cut -f1-3,6-8 ${sample_id}.confirmation.kraken.minimizer.report > ${sample_id}.confirmation.kraken.report
 
     """
