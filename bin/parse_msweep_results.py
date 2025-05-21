@@ -72,7 +72,7 @@ def parse(msweep_dir, reads_dir, out_prefix,
     denominator_choice = (
         "NA" if mode in {"rel_abund", "rel_abund_combined"} else
         "num_aligned" if mode == "count_rel_abund" else
-        "total_input_reads" if mode == "sub_count_rel_abund" else
+        "nonhost_reads" if mode == "sub_count_rel_abund" else
         "constant"
     )
 
