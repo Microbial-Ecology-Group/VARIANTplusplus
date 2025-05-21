@@ -1,5 +1,15 @@
 # VARIANT++ step by step guide
 
+## Table of Contents
+1. [Prerequisites](#prerequisites)
+2. [Other considerations](#other-considerations)
+3. [Step 1 – QC trimming and merge reads](#step-1-qc-trimming-and-merge-reads)
+4. [Step 2 – Deduplicate merged reads](#step-2-deduplicate-merged-reads)
+5. [Step 3 – Remove host DNA](#step-3-remove-host-dna)
+6. [Step 4 – Filter reads with Kraken](#step-4-filter-reads-with-kraken)
+7. [Step 5 – Classification with Themisto and mSWEEP](#step-5-perform-classification-with-themisto-and-msweep)
+8. [Explore the results](#explore-the-results)
+
 Make sure that you have:
 1. An updated VARIANT++_env and github repository
 ** Install it with conda from the VARIANT++ directory with: 
@@ -12,7 +22,6 @@ conda env create -f envs/VARIANT++_env.yaml
 
 conda activate VARIANT++_env
 # if that doesn't work, use "source" instead of "conda" for the command above.
-
 ```
 2. The coreNT kraken database. It's about 240 GB and can be downloaded like this:
 ```
