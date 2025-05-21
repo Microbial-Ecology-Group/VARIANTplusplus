@@ -1,4 +1,4 @@
-name: VARIANT++
+name: VARIANT++_env
 channels:
   - bioconda
   - conda-forge
@@ -19,9 +19,9 @@ dependencies:
   - git
   - seqtk=1.3
   - msweep
-  - bbmap
   - biopython
   - krakentools
   - insilicoseq
   - nextflow
   - flash
+  - seqkit

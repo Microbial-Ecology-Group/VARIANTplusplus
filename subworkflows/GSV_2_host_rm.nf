@@ -5,16 +5,16 @@ include { index ; bwa_rm_contaminant_fq ; HostRemovalStats          } from '../m
 include { dlkraken ; runkraken_merged_extract                       } from '../modules/Microbiome/kraken2'
 include { MergedPseudoalignFastqFiles ; MergedRunMSweep
          ; MergedParsemSweepResults                                 } from '../modules/Alignment/bwa'
-
+include { SeqkitReadCounts                                          } from '../modules/QC/dedup'
 
 
 /*───────────────────────────────────────────────────────────────────────────
- *  HOST-REFERENCE HANDLING (same logic as before)
+ *  HOST-REFERENCE HANDLING + READ-COUNT STATS
  *───────────────────────────────────────────────────────────────────────────*/
 workflow GSV_2_WF {
 
     take:
-        merged_reads_ch   
+        merged_reads_ch
         hostfasta
 
     main:
@@ -22,7 +22,7 @@ workflow GSV_2_WF {
         def reference_index_ch
         if( params.host_index ) {
             reference_index_ch = Channel
-                 .fromPath( params.host_index )
+                 .fromPath( params.host_index , glob: true )
                  .ifEmpty { error "No files match --host_index '${params.host_index}'" }
                  .toList()
                  .map { files -> files.sort() }
@@ -53,17 +53,24 @@ workflow GSV_2_WF {
           }
           .set { to_host_rm_ch }
 
-  
-  
-        //to_host_rm_ch.view()
-        /* build / load BWA index exactly as before */
 
+        bwa_rm_contaminant_fq( reference_index_ch, to_host_rm_ch )
 
-        bwa_rm_contaminant_fq( reference_index_ch , to_host_rm_ch )
-        
-        /* ───── remove host reads ─────────────────────────────────────*/
+        /* ── extra channel: the non-host reads in tuple form ───────────── */
+        def nonhost_reads_ch = bwa_rm_contaminant_fq.out.nonhost_reads
+        //  cleanedFastqs is whatever tuple the module emits, e.g.
+        //  ( sample_id , cleanedMerged.fastq.gz? , cleanedUnmerged.fastq.gz? )
 
         HostRemovalStats( bwa_rm_contaminant_fq.out.host_rm_stats )
 
- }
+        /* wait-token so the stats step starts only after host removal */
+        def bwa_done_ch = bwa_rm_contaminant_fq.out.host_rm_stats.map{ 1 }.first()
+
+
+
+    /* ── what this sub-workflow gives to its caller ────────────────────── */
+    emit:
+        bwa_rm_contaminant_fq.out.nonhost_reads
+}
+
 

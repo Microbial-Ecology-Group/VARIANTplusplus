@@ -1,8 +1,8 @@
 nextflow.enable.dsl=2
 // Example command:
 // module load python/3.9.3_anaconda2021.11_mamba
-// nextflow run main_AMR++.nf -profile conda --pipeline demo
-// nextflow run main_AMR++.nf -profile conda --pipeline demo --kraken_db /mnt/c/Users/enriq/Dropbox/minikraken_8GB_20200312/
+// nextflow run main_VARIANT++.nf -profile conda --pipeline demo
+// nextflow run main_VARIANT++.nf -profile conda --pipeline demo --kraken_db /mnt/c/Users/enriq/Dropbox/minikraken_8GB_20200312/
 
 /*
  * Default pipeline parameters. They can be overriden on the command line eg.
@@ -22,22 +22,23 @@ def helpMessage = """\
     =============================
 
     Available pipelines:
-        - demo: Run a demonstration of AMR++
+        - demo: Run a demonstration of VARIANT++
         - full_GSV_pipeline: Run the standard VARIANT++ pipeline
     Available pipeline subworkflows:
-        - GSV_1: QC trimming, merging of reads, and deduplication of reads
-        - GSV_2: Host DNA removal 
-        - GSV_3: Read filtration with Kraken2
-        - GSV_4: GSV Classification with themisto/mSweep
+        - GSV_1: QC trimming, and merging of reads (--reads)
+        - GSV_2: deduplication of reads (--merged_reads)
+        - GSV_3: Host DNA removal (--merged_reads)
+        - GSV_4: Read filtration with Kraken2 (--merged_reads)
+        - GSV_5: GSV Classification with themisto/mSweep (--merged_reads)
 
     To run a specific pipeline/subworkflow, use the "--pipeline" option followed by the pipeline name:
-        nextflow run main_AMR++.nf --pipeline <pipeline_name> [other_options]
+        nextflow run main_VARIANT++.nf --pipeline <pipeline_name> [other_options]
 
-    To analyze your samples or otherwise change how AMR++ runs, modify the "params.config" file 
+    To analyze your samples or otherwise change how VARIANT++ runs, modify the "params.config" file 
     or add more parameters to the command line.
 
     Finally, consider your computing environment and modify the "-profile" option. By default,
-    AMR++ assumes all software dependencies are in your \$PATH, as in the "local" profile. Here are 
+    VARIANT++ assumes all software dependencies are in your \$PATH, as in the "local" profile. Here are 
     the other options:
         - local: Assumes all sofware is already in your \$PATH
         - local_slurm: Local installation and adds control over slurm job submission.
@@ -86,10 +87,13 @@ include { FASTQ_DEDUP_WF } from './subworkflows/fastq_dedup.nf'
 include { FASTQ_DEDUP_BBMAP_WF } from './subworkflows/fastq_dedup_bbmap.nf'
 include { FLASH_MERGE_WF } from './subworkflows/GSV_flash_reads.nf'
 include { GSV_PIPELINE_WF } from './subworkflows/GSV_full_pipeline.nf'
-include { GSV_1_WF } from './subworkflows/GSV_1_qc_merge_dedup.nf'
-include { GSV_2_WF } from './subworkflows/GSV_2_host_rm.nf'
-include { GSV_3_WF } from './subworkflows/GSV_3_kraken_extract.nf'
-include { GSV_4_WF } from './subworkflows/GSV_4_classification.nf'
+include { GSV_1_WF } from './subworkflows/GSV_step_1_qc_merge.nf'
+include { GSV_2_WF } from './subworkflows/GSV_step_2_dedup.nf'
+include { GSV_3_WF } from './subworkflows/GSV_step_3_host_rm.nf'
+include { GSV_4_WF } from './subworkflows/GSV_step_4_kraken_extraction.nf'
+include { GSV_5_WF } from './subworkflows/GSV_step_5_GSV_classification.nf'
+
+
 
 workflow {
     if (params.pipeline == null || params.pipeline == "help") {
@@ -99,7 +103,7 @@ workflow {
 
         log.info """\
         ===================================
-        Running a demonstration of AMR++
+        Running a demonstration of VARIANT++
         ===================================
         """
         //run with demo params, use params.config
@@ -109,7 +113,7 @@ workflow {
     else if(params.pipeline == "demo") {
         log.info """\
         ===================================
-        Running a demonstration of AMR++
+        Running a demonstration of VARIANT++
         ===================================
         """
         //run with demo params, use params.config
@@ -168,17 +172,96 @@ workflow {
         GSV_PIPELINE_WF( fastq_files,params.host)
     } 
     else if(params.pipeline == "GSV_1") {
-        GSV_1_WF( fastq_files,params.host)
+        GSV_1_WF( fastq_files)
     }    
     else if(params.pipeline == "GSV_2") {
-        GSV_2_WF( params.merged_reads,params.host)
+        Channel
+            .fromPath( params.merged_reads, glob:true )
+            .ifEmpty { error "No FASTQs match: ${params.merged_reads}" }
+        
+            /* keep sample-ID (sid), read-type (rtype), and the Path itself */
+            .map { f ->
+                def m = (f.name =~ /(.+?).(extendedFrags|notCombined)\.fastq\.gz$/)
+                if( !m ) error "Unrecognised FLASH name: ${f.name}"
+                def sid   = m[0][1]
+                def rtype = m[0][2]            // extendedFrags | notCombined
+                tuple( sid, tuple(rtype, f) )  // --> (sid , (rtype , file))
+            }
+        
+            /* group by sample ID → (sid , [ (rtype,file) , … ]) */
+            .groupTuple()
+        
+            /* split the list into the two files we need */
+            .map { sid, list ->
+                def merged_fq   = list.find { it[0] == 'extendedFrags' }?.getAt(1)
+                def unmerged_fq = list.find { it[0] == 'notCombined'   }?.getAt(1)
+                if( !merged_fq || !unmerged_fq )
+                    error "Sample ${sid} is missing merged or unmerged FASTQ"
+                tuple( sid, merged_fq, unmerged_fq )
+            }
+            .set { to_dedup_ch }      // ( sid , merged , unmerged )
+        GSV_2_WF( to_dedup_ch)
     }     
     else if(params.pipeline == "GSV_3") {
-        GSV_3_WF( params.merged_reads,params.host)
+        Channel
+            .fromPath( params.merged_reads , glob:true )
+            .ifEmpty { error "No FASTQs match: ${params.merged_reads}" }
+            .map { Path f ->
+                // capture sample ID and read-type
+                def m = (f.name =~ /(.+?)_(merged|unmerged)\.dedup\.fastq\.gz$/)
+                if( !m ) error "Bad name for deduped reads: ${f.name}"
+                tuple( m[0][1], tuple(m[0][2], f) )      // (sid , (type , file))
+            }
+            .groupTuple()                                // (sid , [ (type,file) , … ])
+            .map { sid, list ->
+                def merged_fq   = list.find { it[0] == 'merged'   }?.getAt(1)
+                def unmerged_fq = list.find { it[0] == 'unmerged' }?.getAt(1)
+                if( !merged_fq || !unmerged_fq )
+                    error "Sample '${sid}' missing merged or unmerged FASTQ"
+                tuple( sid, merged_fq, unmerged_fq )      // final 3-element tuple
+            }
+            .set { to_host_rm_ch }
+        GSV_3_WF( to_host_rm_ch,params.host)
     }      
     else if(params.pipeline == "GSV_4") {
-        GSV_4_WF( params.merged_reads,params.host)
-    }     
+        Channel
+          .fromFilePairs( params.merged_reads, glob: true )
+          .ifEmpty { error "No FASTQ files match: ${params.merged_reads}" }
+          .map { sample_id, files ->
+            //
+            // files will be e.g.
+            //   [ Path(…/S1_test_merged.dedup.fastq.gz),
+            //     Path(…/S1_test_unmerged.dedup.fastq.gz) ]
+            //
+            def merged   = files.find { it.name.contains('merged')   }
+            def unmerged = files.find { it.name.contains('unmerged') }
+            assert merged && unmerged : "Sample $sample_id missing one of merged/unmerged"
+            tuple( sample_id, merged, unmerged )
+          }
+          .set { kraken_input_ch }
+        GSV_4_WF( kraken_input_ch)
+    }
+    else if(params.pipeline == "GSV_5") {
+                
+        /*  Build ( sid , mergedFile , unmergedFile )  -------------------------- */
+        Channel
+          .fromFilePairs( params.merged_reads, glob: true )
+          .ifEmpty { error "No FASTQ files match: ${params.merged_reads}" }
+          .map { sample_id, files ->
+            //
+            // files will be e.g.
+            //   [ Path(…/S1_test_merged.dedup.fastq.gz),
+            //     Path(…/S1_test_unmerged.dedup.fastq.gz) ]
+            //
+            def merged   = files.find { it.name.contains('merged')   }
+            def unmerged = files.find { it.name.contains('unmerged') }
+            assert merged && unmerged : "Sample $sample_id missing one of merged/unmerged"
+            tuple( sample_id, merged, unmerged )
+          }
+          .set { themisto_input_ch }
+          
+        GSV_5_WF( themisto_input_ch)
+    }       
     else if(params.pipeline == "merge") {
         FLASH_MERGE_WF( fastq_files)
     } 

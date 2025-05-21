@@ -14,7 +14,7 @@ minlen = params.minlen
 
 process runqc {
     tag { sample_id }
-    label "trimming"
+    label "small"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
@@ -37,7 +37,7 @@ process runqc {
     """
      ${TRIMMOMATIC} \
       PE \
-      -threads ${threads} \
+      -threads ${task.cpus} \
       ${reads[0]} ${reads[1]} ${sample_id}.1P.fastq.gz ${sample_id}.1U.fastq.gz ${sample_id}.2P.fastq.gz ${sample_id}.2U.fastq.gz \
       ILLUMINACLIP:${adapters}:2:30:10:3:TRUE \
       LEADING:${leading} \
@@ -51,7 +51,7 @@ process runqc {
 
 process QCstats {
     tag "Make QC summary file"
-    label "python"
+    label "nano"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3

@@ -3,10 +3,9 @@
 //
 include { runqc ; QCstats }                                from '../modules/Trimming/trimmomatic'
 include { MergeReadsFlash }                                from '../modules/QC/merge'
-include { index }                                          from '../modules/Alignment/bwa'
-include { MergedDeduplicateReadsBBMap }                    from '../modules/QC/dedup.nf'
+include { SeqkitReadCounts; MergedDeduplicateReadsSeqkit }                    from '../modules/QC/dedup.nf'
 
-workflow GSV_1_WF {
+workflow GSV_1_WF_old_working {
 
     take:
         read_pairs_ch         // ( sample_id , [R1,R2] )
@@ -17,19 +16,6 @@ workflow GSV_1_WF {
         runqc( read_pairs_ch )
         QCstats( runqc.out.trimmomatic_stats.collect() )
 
-        /* ── build or read BWA index ────────────────────────── */
-        def reference_index_ch = params.host_index
-            ? Channel
-                .fromPath( params.host_index )
-                .ifEmpty { error "No files match --host_index '${params.host_index}'" }
-                .toList()
-                .map { files ->  
-                        if( files.size() < 6 )
-                            error "Expected ≥6 BWA index files, found ${files.size()}"
-                        files.sort()
-                      }
-            : { index( hostfasta ); index.out }()
-                         // ^ anonymous closure to run `index(...)`
 
         /* ── FLASH merge ────────────────────────────────────── */
         MergeReadsFlash( runqc.out.paired_fastq )
@@ -39,9 +25,9 @@ workflow GSV_1_WF {
 
         /* ── BBMap deduplication ────────────────────────────── */
         to_dedup_ch = merged_only_ch.join( unmerged_only_ch )   // ( sample , merged , unmerged )
-        MergedDeduplicateReadsBBMap( to_dedup_ch )
+        MergedDeduplicateReadsSeqkit( to_dedup_ch )
 
     emit:
-        dedup_merged   = MergedDeduplicateReadsBBMap.out.dedup_merged
-        dedup_unmerged = MergedDeduplicateReadsBBMap.out.dedup_unmerged
+        dedup_merged   = MergedDeduplicateReadsSeqkit.out.dedup_merged
+        dedup_unmerged = MergedDeduplicateReadsSeqkit.out.dedup_unmerged
 }

@@ -10,7 +10,7 @@ threads = params.threads
 process MergeReadsFlash {
 
     tag   { sample_id }
-    label "small_memory_medium_time"
+    label "small"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3

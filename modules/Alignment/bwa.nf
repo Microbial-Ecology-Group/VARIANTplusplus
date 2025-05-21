@@ -6,9 +6,14 @@ themisto_index = params.themisto_index
 
 clustering_file = params.clustering_file
 
+
+
+
+
+
 process index {
     tag "Creating bwa index"
-    label "alignment"
+    label "medium"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 3
@@ -54,25 +59,25 @@ process bwa_align {
     script:
     if( deduped == "N")
         """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${threads} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${threads} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
+        ${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
+        ${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
         rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${threads} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
+        ${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
         rm ${pair_id}_alignment.bam
         """
     else if( deduped == "Y")
         """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${threads} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${threads} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
+        ${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
+        ${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
         rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${threads} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
+        ${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
         rm ${pair_id}_alignment.bam
-        ${SAMTOOLS} fixmate -@ ${threads} ${pair_id}_alignment_sorted.bam ${pair_id}_alignment_sorted_fix.bam
-        ${SAMTOOLS} sort -@ ${threads} ${pair_id}_alignment_sorted_fix.bam -o ${pair_id}_alignment_sorted_fix.sorted.bam
+        ${SAMTOOLS} fixmate -@ ${task.cpus} ${pair_id}_alignment_sorted.bam ${pair_id}_alignment_sorted_fix.bam
+        ${SAMTOOLS} sort -@ ${task.cpus} ${pair_id}_alignment_sorted_fix.bam -o ${pair_id}_alignment_sorted_fix.sorted.bam
         rm ${pair_id}_alignment_sorted_fix.bam
         ${SAMTOOLS} rmdup -S ${pair_id}_alignment_sorted_fix.sorted.bam ${pair_id}_alignment_dedup.bam
         rm ${pair_id}_alignment_sorted_fix.sorted.bam
-        ${SAMTOOLS} view -@ ${threads} -h -o ${pair_id}_alignment_dedup.sam ${pair_id}_alignment_dedup.bam
+        ${SAMTOOLS} view -@ ${task.cpus} -h -o ${pair_id}_alignment_dedup.sam ${pair_id}_alignment_dedup.bam
         rm ${pair_id}_alignment_dedup.sam
         """
     else
@@ -98,7 +103,6 @@ process index_genomes {
     bwa index -p ${genome.baseName} ${genome}
     """
 }
-
 
 process align_reads {
     tag "${sampleName}_${genomeName}"
@@ -252,14 +256,14 @@ process PseudoalignFastqFiles {
     script:
     """
     mkdir -p tmp
-    $baseDir/bin/themisto pseudoalign -q "${reads[0]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R1.fastq"
-    $baseDir/bin/themisto pseudoalign -q "${reads[1]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${threads} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R2.fastq"
+    $baseDir/bin/themisto pseudoalign -q "${reads[0]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${task.cpus} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R1.fastq"
+    $baseDir/bin/themisto pseudoalign -q "${reads[1]}" -i ${themisto_index}/themisto_index --temp-dir tmp -t ${task.cpus} --gzip-output --sort-output-lines -o "${sampleName}_pseudoaligned_R2.fastq"
     rm -rf tmp/
     """
 }
 
 
-process MergedPseudoalignFastqFiles {
+process OrigMergedPseudoalignFastqFiles {
 
     tag { sample_id }
     label "large_memory"
@@ -286,7 +290,7 @@ process MergedPseudoalignFastqFiles {
     ${baseDir}/bin/themisto pseudoalign \
         -q ${merged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
-        --temp-dir tmp -t ${threads} \
+        --temp-dir tmp -t ${task.cpus} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_merged.fastq
 
@@ -294,13 +298,16 @@ process MergedPseudoalignFastqFiles {
     ${baseDir}/bin/themisto pseudoalign \
         -q ${unmerged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
-        --temp-dir tmp -t ${threads} \
+        --temp-dir tmp -t ${task.cpus} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_unmerged.fastq
 
     rm -rf tmp
     """
 }
+
+
+
 
 process RunMSweep {
     tag "${sampleName}"
@@ -316,51 +323,102 @@ process RunMSweep {
 
     script:
     """
-    mSWEEP --themisto-1 "${pseudoaligned[0]}" --themisto-2 "${pseudoaligned[1]}" -i ${clustering_file} -t ${threads} -o ${sampleName}.msweep.txt --verbose
+    mSWEEP --themisto-1 "${pseudoaligned[0]}" --themisto-2 "${pseudoaligned[1]}" -i ${clustering_file} -t ${task.cpus} -o ${sampleName}.msweep.txt --verbose
     """
 }
 
 
 process MergedRunMSweep {
 
-    tag { sample_id }
-    label "small_memory"
+    tag   { sample_id }
+    label "small_memory_short_time"
 
     publishDir "${params.output}/mSWEEP_results", mode: 'copy'
 
     input:
-        tuple val(sample_id),
-              path(pseudo_merged),        //  …pseudoaligned_merged.fastq.gz
-              path(pseudo_unmerged)       //  …pseudoaligned_unmerged.fastq.gz
-        path clustering_file
+        tuple val(sample_id), path(pseudo_merged), path(pseudo_unmerged)
+        path  clustering_file
 
     output:
-        path("${sample_id}.merged.msweep_abundances.txt"),   emit: msweep_merged
-        path("${sample_id}.unmerged.msweep_abundances.txt"), emit: msweep_unmerged
+        path("${sample_id}.merged.msweep_abundances.txt"),  optional: true, emit: msweep_merged
+        path("${sample_id}.unmerged.msweep_abundances.txt"), optional: true, emit: msweep_unmerged
+
 
     script:
     """
-    # ── merged read‐set ─────────────────────────────────────────
-    mSWEEP --themisto ${pseudo_merged} \
-           -i ${clustering_file} \
-           -t ${threads} \
-           --themisto-mode intersection \
-           -o ${sample_id}.merged.msweep \
-           --verbose
+    # merged reads ------------------------------------------------------
+    mSWEEP \
+        --themisto ${pseudo_merged} \
+        -i ${clustering_file} \
+        -t ${task.cpus} \
+        --themisto-mode intersection \
+        -o ${sample_id}.merged.msweep \
+        --verbose || true        # ignore any mSWEEP failure
 
-    # ── unmerged read‐set ───────────────────────────────────────
-    mSWEEP --themisto ${pseudo_unmerged} \
-           -i ${clustering_file} \
-           -t ${threads} \
-           --themisto-mode intersection \
-           -o ${sample_id}.unmerged.msweep \
-           --verbose
+    # un-merged reads ---------------------------------------------------
+    mSWEEP \
+        --themisto ${pseudo_unmerged} \
+        -i ${clustering_file} \
+        -t ${task.cpus} \
+        --themisto-mode intersection \
+        -o ${sample_id}.unmerged.msweep \
+        --verbose || true
+    """
+}
+
+
+process MergedPseudoalignFastqFiles {
+
+    tag   { sample_id }
+    label "small"
+
+    publishDir "${params.output}/Filtered_pseudoaligned_reads", mode: 'copy'
+
+    input:
+        tuple val(sample_id),
+              path(merged_fastq),          // …_Mh_extracted_merged.fastq.gz
+              path(unmerged_fastq)         // …_Mh_extracted_unmerged.fastq.gz
+        path themisto_index
+
+    output:
+        tuple val(sample_id),
+              // ↓ let the task succeed even if this file is absent
+              path("${sample_id}_pseudoaligned_merged.fastq.gz",  optional: true),
+              path("${sample_id}_pseudoaligned_unmerged.fastq.gz", optional: true),
+              emit: pseudoalignedFastqFiles
+
+    /*
+     * If Themisto exits with a non-zero code when no reads map,
+     * add “|| true” so the script still returns status 0.
+     * (Leave it out if Themisto already exits 0 in that case.)
+     */
+    script:
+    """
+    mkdir -p tmp
+
+    # ─ merged reads ───────────────────────────────────────────
+    ${baseDir}/bin/themisto pseudoalign \
+        -q ${merged_fastq} \
+        -i ${themisto_index}/2025_themisto_index_no \
+        --temp-dir tmp -t ${task.cpus} \
+        --gzip-output --sort-output-lines \
+        -o ${sample_id}_pseudoaligned_merged.fastq || true
+
+    # ─ unmerged (interleaved) reads ───────────────────────────
+    ${baseDir}/bin/themisto pseudoalign \
+        -q ${unmerged_fastq} \
+        -i ${themisto_index}/2025_themisto_index_no \
+        --temp-dir tmp -t ${task.cpus} \
+        --gzip-output --sort-output-lines \
+        -o ${sample_id}_pseudoaligned_unmerged.fastq || true
+
+    rm -rf tmp
     """
 }
 
 process MergedParsemSweepResults {
     tag "parse_msweep"
-    label "small_memory"                         
+    label "micro"                         
 
     publishDir "${params.output}/Results", mode: 'copy'
 
@@ -379,7 +437,7 @@ process MergedParsemSweepResults {
         --reads_dir  $baseDir/${params.output}/HostRemoval/NonHostFastq/ \
         -o mSweep_results \
         --filter-mode sub_count_rel_abund \
-        --rel-thr 0.01
+        --rel-thr 0.002
     """
 }
 
@@ -387,7 +445,7 @@ process MergedParsemSweepResults {
 process bwa_rm_contaminant_fq {
 
     tag   { pair_id }
-    label "alignment"
+    label "small_memory"
     maxRetries 3
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
 
@@ -405,8 +463,8 @@ process bwa_rm_contaminant_fq {
     script:
     """
 
-    ${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${threads} \
-            | ${SAMTOOLS} sort -@ ${threads} -o ${pair_id}.host.sorted.bam
+    ${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${task.cpus} \
+            | ${SAMTOOLS} sort -@ ${task.cpus} -o ${pair_id}.host.sorted.bam
 
 
     ${SAMTOOLS} index   ${pair_id}.host.sorted.bam
@@ -414,10 +472,73 @@ process bwa_rm_contaminant_fq {
 
     # keep ALL unmapped reads (flag 4) → one interleaved FASTQ-gz
     ${SAMTOOLS} view -b -f 4 ${pair_id}.host.sorted.bam 
-    ${SAMTOOLS} fastq -@ ${threads} -f 4 \
+    ${SAMTOOLS} fastq -@ ${task.cpus} -f 4 \
     ${pair_id}.host.sorted.bam \
-        | pigz -p ${threads} -c \
+        | pigz -p ${task.cpus} -c \
         > ${pair_id}.non.host.fastq.gz
+    """
+}
+
+
+process Mergedbwa_rm_contaminant_fq {
+
+    tag   { sample_id }
+    label "medium"
+
+    maxRetries 3
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+
+    publishDir "${params.output}/HostRemoval", mode: 'copy',
+        saveAs: { fn ->
+            if (fn.endsWith('.fastq.gz'))
+                "NonHostFastq/$fn"          // keep only the de-contaminated FASTQs
+            else
+                null
+        }
+
+    /* ───────── inputs ────────────────────────────────────────────────
+     *  indexfiles[0]  – bwa index prefix (6 files in the same dir)
+     *  merged_fq      – FLASH-merged reads      (sample.extendedFrags.fastq.gz)
+     *  unmerged_fq    – FLASH-unmerged reads    (sample.notCombined.fastq.gz)
+     */
+    input:
+        path  indexfiles
+        tuple val(sample_id), path(merged_fq), path(unmerged_fq)
+
+    /* ───────── outputs ─────────────────────────────────────────────── */
+    output:
+        tuple val(sample_id), path("${sample_id}.merged.non.host.fastq.gz"),   emit: nonhost_merged
+        path("${sample_id}.merged.samtools.idxstats"),                         emit: host_rm_stats_merged
+
+        tuple val(sample_id), path("${sample_id}.unmerged.non.host.fastq.gz"), emit: nonhost_unmerged
+        path("${sample_id}.unmerged.samtools.idxstats"),                       emit: host_rm_stats_unmerged
+
+    script:
+    """
+    set -euo pipefail
+
+    # ───────────────────────── merged reads ────────────────────────────
+    bwa mem ${indexfiles[0]} ${merged_fq} -t ${task.cpus} \
+        | samtools sort -@ ${task.cpus} -o ${sample_id}.merged.host.sorted.bam
+
+    samtools index   ${sample_id}.merged.host.sorted.bam
+    samtools idxstats ${sample_id}.merged.host.sorted.bam \
+        > ${sample_id}.merged.samtools.idxstats
+
+    samtools view -b -f 4 ${sample_id}.merged.host.sorted.bam \
+      | samtools fastq -@ ${task.cpus} -c 6 - | pigz -p ${task.cpus} -c > ${sample_id}.merged.non.host.fastq.gz
+
+
+    # ──────────────────────── un-merged reads ──────────────────────────
+    bwa mem ${indexfiles[0]} ${unmerged_fq} -t ${task.cpus} \
+        | samtools sort -@ ${task.cpus} -o ${sample_id}.unmerged.host.sorted.bam
+
+    samtools index   ${sample_id}.unmerged.host.sorted.bam
+    samtools idxstats ${sample_id}.unmerged.host.sorted.bam \
+        > ${sample_id}.unmerged.samtools.idxstats
+
+    samtools view -b -f 4 ${sample_id}.unmerged.host.sorted.bam \
+      | samtools fastq -@ ${task.cpus} -c 6 - | pigz -p ${task.cpus} -c > ${sample_id}.unmerged.non.host.fastq.gz
     """
 }
 
@@ -425,7 +546,7 @@ process bwa_rm_contaminant_fq {
 process HostRemovalStats {
 
     tag { "${sample_id}_${idxstats.name.tokenize('_')[-2]}" }   // merged / unmerged
-
+    label "nano"
     publishDir "${params.output}/Results/Stats", mode: 'copy'
 
     input:
