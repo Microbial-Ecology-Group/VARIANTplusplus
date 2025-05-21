@@ -107,7 +107,7 @@ Parameters that have to change:
 Example command:
 
 ```
-nextflow run main_VARIANT++.nf --pipeline GSV_3 --output GSV_analysis --merged_reads 'GSV_analysis/HostRemoval/NonHostFastq/*_{merged,unmerged}.non.host.fastq.gz' -profile local_slurm
+nextflow run main_VARIANT++.nf --pipeline GSV_4 --output GSV_analysis --merged_reads 'GSV_analysis/HostRemoval/NonHostFastq/*_{merged,unmerged}.non.host.fastq.gz' -profile local_slurm
 ```
 
 ## Step 5: Perform classification with themisto and mSweep
