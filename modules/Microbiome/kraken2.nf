@@ -149,7 +149,7 @@ process runkraken_extract {
 process runkraken_merged_extract {
 
     tag   { sample_id }
-    label "large_memory"
+    label "large_long"
 
     publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
         saveAs: { fn ->

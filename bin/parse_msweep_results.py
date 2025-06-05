@@ -13,7 +13,7 @@ Slim parser for mSWEEP abundance files.
 * Counts reads in each FASTQ and uses that number as the denominator when
   converting relative-abundance to absolute counts.
 * Applies one of **six** filter modes
-     rel_abund | rel_abund_combined | count | count_rel_abund | sub_count | sub_count_rel_abund
+     rel_abund | rel_abund_combined | count | count_rel_abund | sub_count | sub_count_rel_abund | rel_abund_by_psv
 * Produces
   ─ <out>_summary.tsv       – one row per file **plus** one “combined” row per sample
       • found_psv_groups      – {taxon: rel_abund, …} before filtering
@@ -21,18 +21,35 @@ Slim parser for mSWEEP abundance files.
   ─ <out>_count_matrix.tsv  – taxa × samples (combined only) absolute-count matrix
 """
 
+
+# ────────────────────────────────────────────────────────────────────────
+# PSV-specific relative-abundance thresholds
+# (edit these numbers whenever you need new cut-offs)
+# ────────────────────────────────────────────────────────────────────────
+#psv_rel_map = {1: 0.00107, 2: 0.000777, 3: 0.000953, 4: 0.00293,
+#               5: 0.00145, 6: 0.000600, 7: 0.000598, 8: 0.00140} # Conf 0.1, 99quantile
+#psv_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007} # Conf 0.1, 99 quantile
+
+psv_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
+
+
+
 # ───────── helpers ──────────────────────────────────────────────────────
 def count_fastq_reads(fq):
     op = gzip.open if fq.endswith(".gz") else open
     with op(fq, "rt") as fh:
         return sum(1 for _ in fh) // 4
 
+
 def load_msweep(path):
-    """Read *_abundances.txt → (num_reads, num_aligned, DataFrame[taxon,rel_abund])."""
-    n_reads = n_aligned = None; table = []
+    """
+    Read *_abundances.txt  →  (num_reads, num_aligned, DataFrame[taxon, rel_abund])
+    """
+    n_reads = n_aligned = None
+    table   = []
     with open(path) as fh:
         for ln in fh:
-            if ln.startswith("#num_reads"):
+            if   ln.startswith("#num_reads"):
                 n_reads = int(ln.split(":")[1].strip())
             elif ln.startswith("#num_aligned"):
                 n_aligned = int(ln.split(":")[1].strip())
@@ -40,39 +57,62 @@ def load_msweep(path):
                 continue
             elif ln.strip():
                 table.append(ln)
+
     if n_aligned is None:
         raise ValueError(f"{path}: missing #num_aligned")
+
     df = pd.read_csv(StringIO("".join(table)), sep=r"\s+", header=None,
                      names=["taxon", "rel_abund"])
     return n_reads, n_aligned, df
 
-def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads):
-    """Return a filtered copy of *df* according to the selected mode."""
+
+def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, psv_rel_map=None):
+    """
+    Return a filtered (possibly modified) copy of *df*.
+    `df` must already contain columns: rel_abund, abs_count
+    """
     if mode in {"rel_abund", "rel_abund_combined"}:
         keep = df.rel_abund > rel_thr
+
     elif mode == "count":
         keep = df.abs_count > cnt_thr
+
     elif mode == "count_rel_abund":
         keep = df.abs_count > denom_reads * rel_thr
+
     elif mode == "sub_count":
         df["abs_count"] -= cnt_thr
         keep = df.abs_count > 0
+
     elif mode == "sub_count_rel_abund":
         df["abs_count"] -= denom_reads * rel_thr
         keep = df.abs_count > 0
-    else:                           # safety net
+
+    # ── NEW: rel_abund_by_psv ──────────────────────────────────────────
+    elif mode == "rel_abund_by_psv":
+        # subtract PSV-specific floor for every row, keep if > 0
+        def adjusted(row):
+            floor_rel = psv_rel_map.get(int(row.taxon), rel_thr)   # fallback → global
+            return max(0, row.abs_count - denom_reads * floor_rel)
+
+        df["abs_count"] = df.apply(adjusted, axis=1)
+        keep = df.abs_count > 0
+    # ------------------------------------------------------------------
+    else:                       # safety net
         keep = df.rel_abund > rel_thr
+
     return df[keep]
+
 
 # ───────── core ─────────────────────────────────────────────────────────
 def parse(msweep_dir, reads_dir, out_prefix,
           mode, rel_thr=0.01, count_thr=10):
 
-    # for bookkeeping in summary tables
+    # bookkeeping for the summary table
     denominator_choice = (
-        "NA" if mode in {"rel_abund", "rel_abund_combined"} else
-        "num_aligned" if mode == "count_rel_abund" else
-        "nonhost_reads" if mode == "sub_count_rel_abund" else
+        "NA"                 if mode in {"rel_abund", "rel_abund_combined"} else
+        "num_aligned"        if mode == "count_rel_abund" else
+        "nonhost_reads"      if mode in {"sub_count_rel_abund", "rel_abund_by_psv"} else
         "constant"
     )
 
@@ -80,30 +120,30 @@ def parse(msweep_dir, reads_dir, out_prefix,
     if not ms_files:
         sys.exit(f"No mSWEEP files in {msweep_dir}")
 
-    # read counts only needed for the *_rel_abund* count modes
-    need_reads = mode in {"count_rel_abund", "sub_count_rel_abund"}
-    fastq_lookup = {}
+    # per-file FASTQ read counts – only required for *_rel_abund* count modes
+    need_reads     = mode in {"count_rel_abund", "sub_count_rel_abund", "rel_abund_by_psv"}
+    fastq_lookup   = {}
     if need_reads:
         for fq in glob.glob(os.path.join(reads_dir, "*.non.host.fastq*")):
             base = os.path.basename(fq)
             try:
-                sample, rtype = base.replace(".non.host.fastq.gz", "").rsplit("_", 1)
+                sample, rtype = base.replace(".non.host.fastq.gz", "").rsplit(".", 1)
                 fastq_lookup[(sample, rtype)] = fq
             except ValueError:
                 print(f"[WARN] unexpected FASTQ skipped: {base}")
 
     summary_rows, count_matrix = [], defaultdict(dict)
-    combined_bucket = {}     # sample → dict with per-file data
+    combined_bucket            = {}
 
     # ------------------------------------------------------------------ #
-    # 1 · per-file pass (filter immediately only for classic rel_abund)  #
+    # 1 · per-file pass (immediate filtering only for classic rel_abund) #
     # ------------------------------------------------------------------ #
     for mfile in ms_files:
         base = os.path.basename(mfile)
         try:
             sample_id, read_type, *_ = base.split(".")
         except ValueError:
-            print(f"[WARN] bad mSWEEP name {base}; skip")
+            print(f"[WARN] bad mSWEEP name {base}; skipped")
             continue
 
         # non-host read count if needed
@@ -118,20 +158,18 @@ def parse(msweep_dir, reads_dir, out_prefix,
 
         n_reads_hdr, n_aligned_hdr, df = load_msweep(mfile)
         df["abs_count"] = df.rel_abund * n_aligned_hdr
-
-        # guarantee rel_abund column exists before any later filtering
-        if "rel_abund" not in df.columns:
-            df["rel_abund"] = 0.0
-
         found_psvs_full = dict(zip(df.taxon, df.rel_abund.round(6)))
 
-        if mode == "rel_abund":                # per-file filtering
-            df_kept = apply_filter(df.copy(), mode, rel_thr, count_thr, n_aligned_hdr or 1)
+        # per-file filtering (only for classic rel_abund)
+        if mode == "rel_abund":
+            df_kept = apply_filter(df.copy(), mode, rel_thr, count_thr,
+                                   n_aligned_hdr or 1)
             kept_dict = dict(zip(df_kept.taxon, df_kept.abs_count.round(2)))
-            kept_n = len(df_kept)
+            kept_n    = len(df_kept)
         else:
             df_kept, kept_dict, kept_n = df.copy(), {}, 0
 
+        # store summary
         summary_rows.append({
             "sample"              : sample_id,
             "read_type"           : read_type,
@@ -146,15 +184,14 @@ def parse(msweep_dir, reads_dir, out_prefix,
             "denominator_choice"  : denominator_choice
         })
 
-        # bucket for combined
         bucket = combined_bucket.setdefault(
             sample_id,
             {"reads": 0, "hdr_reads": 0, "hdr_aligned": 0,
              "tables_filtered": [], "tables_raw": []}
         )
-        bucket["hdr_reads"]   += n_reads_hdr or 0
-        bucket["hdr_aligned"] += n_aligned_hdr or 0
-        bucket["reads"]       += nonhost_reads
+        bucket["hdr_reads"]       += n_reads_hdr or 0
+        bucket["hdr_aligned"]     += n_aligned_hdr or 0
+        bucket["reads"]           += nonhost_reads
         bucket["tables_filtered"].append(df_kept)
         bucket["tables_raw"].append(df)
 
@@ -162,67 +199,58 @@ def parse(msweep_dir, reads_dir, out_prefix,
     # 2 · build combined rows                                            #
     # ------------------------------------------------------------------ #
     for sample_id, info in combined_bucket.items():
-        comb_reads       = info["reads"]
-        hdr_reads_sum    = info["hdr_reads"]
-        hdr_aligned_sum  = info["hdr_aligned"]
+        denom_reads     = info["reads"]          # non-host reads
+        hdr_aligned_sum = info["hdr_aligned"]    # for rel_abund calc
 
-        # which tables are merged?
-        if mode == "rel_abund":
-            tables_to_merge = info["tables_filtered"]
-        else:                                      # ALL other modes
-            tables_to_merge = info["tables_raw"]
-
+        tables_to_merge = (info["tables_filtered"] if mode == "rel_abund"
+                           else info["tables_raw"])
         if not tables_to_merge:
             continue
 
-        df_sum = (
-            pd.concat(tables_to_merge, ignore_index=True)
-              .groupby("taxon", as_index=False)["abs_count"].sum()
-        )
+        df_sum = (pd.concat(tables_to_merge, ignore_index=True)
+                    .groupby("taxon", as_index=False)["abs_count"].sum())
 
-        # always compute combined rel_abund
-        denom_ra = hdr_aligned_sum or 1
-        df_sum["rel_abund"] = df_sum.abs_count / denom_ra
+        df_sum["rel_abund"] = df_sum.abs_count / (hdr_aligned_sum or 1)
 
-        # post-merge filtering where required
-        if mode == "rel_abund_combined":
-            df_sum = apply_filter(df_sum, "rel_abund_combined",
-                                  rel_thr, count_thr, denom_ra)
-        elif mode not in {"rel_abund"}:            # other numeric modes
+        # post-merge filtering
+        if   mode == "rel_abund_combined":
+            df_sum = apply_filter(df_sum, mode, rel_thr, count_thr,
+                                  hdr_aligned_sum)
+        elif mode in {"count", "count_rel_abund",
+                      "sub_count", "sub_count_rel_abund",
+                      "rel_abund_by_psv"}:
             if   mode == "count_rel_abund":
-                denom_reads = hdr_aligned_sum
-            elif mode == "sub_count_rel_abund":
-                denom_reads = comb_reads
-            else:
-                denom_reads = 1
-            df_sum = apply_filter(df_sum, mode,
-                                  rel_thr, count_thr, denom_reads)
+                denom = hdr_aligned_sum
+            else:                               # sub*  OR  rel_abund_by_psv
+                denom = denom_reads
+            df_sum = apply_filter(df_sum, mode, rel_thr, count_thr,
+                                  denom, psv_rel_map)
 
         comb_filtered = dict(zip(df_sum.taxon, df_sum.abs_count.round(2)))
-        kept_n = len(df_sum)
 
         summary_rows.append({
             "sample"              : sample_id,
             "read_type"           : "combined",
-            "num_reads_hdr"       : hdr_reads_sum,
+            "num_reads_hdr"       : info["hdr_reads"],
             "num_aligned_hdr"     : hdr_aligned_sum,
-            "nonhost_reads"       : comb_reads,
+            "nonhost_reads"       : denom_reads,
             "found_taxa_n"        : len(df_sum),
-            "kept_taxa_n"         : kept_n,
+            "kept_taxa_n"         : len(comb_filtered),
             "filter_mode"         : mode,
-            "found_psv_groups"    : {},                 # blank for combined
+            "found_psv_groups"    : {},
             "filtered_psv_groups" : comb_filtered,
             "denominator_choice"  : denominator_choice
         })
 
-        # populate count-matrix from combined filtered taxa
+        # matrix (combined rows only)
         for taxon, cnt in comb_filtered.items():
             count_matrix[taxon][f"{sample_id}_combined"] = cnt
 
     # ------------------------------------------------------------------ #
     # 3 · output                                                         #
     # ------------------------------------------------------------------ #
-    pd.DataFrame(summary_rows).to_csv(f"{out_prefix}_summary.tsv", sep="\t", index=False)
+    pd.DataFrame(summary_rows).to_csv(f"{out_prefix}_summary.tsv",
+                                      sep="\t", index=False)
     pd.DataFrame(count_matrix).fillna(0).T.sort_index().sort_index(axis=1) \
         .to_csv(f"{out_prefix}_count_matrix.tsv", sep="\t")
 
@@ -239,13 +267,14 @@ if __name__ == "__main__":
     ap.add_argument("--msweep_dir", required=True)
     ap.add_argument("--reads_dir",  required=True)
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--filter-mode", default="rel_abund",
+    ap.add_argument("--filter-mode", default="rel_abund_by_psv",
         choices=["rel_abund", "rel_abund_combined",
                  "count", "count_rel_abund",
-                 "sub_count", "sub_count_rel_abund"])
+                 "sub_count", "sub_count_rel_abund",
+                 "rel_abund_by_psv"])
     ap.add_argument("--rel-thr",   type=float, default=0.01)
     ap.add_argument("--count-thr", type=float, default=10)
-    a = ap.parse_args()
+    args = ap.parse_args()
 
-    parse(a.msweep_dir, a.reads_dir, a.out_prefix,
-          a.filter_mode, a.rel_thr, a.count_thr)
+    parse(args.msweep_dir, args.reads_dir, args.out_prefix,
+          args.filter_mode, args.rel_thr, args.count_thr)
