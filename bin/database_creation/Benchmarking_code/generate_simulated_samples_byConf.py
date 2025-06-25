@@ -12,10 +12,10 @@ Description:
 - This script reads user config (benchmarking_params),
 - Creates 3 bash scripts:
   1) script_build_reads_{PREFIX}.sh
-       * For each (numPSV, iteration, k_col):
-         - If numPSV==0 => pick non-target => cat references => run ISS => run flash => final partial_name => 
+       * For each (numGSV, iteration, k_col):
+         - If numGSV==0 => pick non-target => cat references => run ISS => run flash => final partial_name => 
            rename_sample_files.py => rename_headers.py ...
-         - If numPSV>0 => pick multiple PSVs => cat references => run ISS => run flash => final partial_name => 
+         - If numGSV>0 => pick multiple GSVs => cat references => run ISS => run flash => final partial_name => 
            rename_sample_files.py => rename_headers.py ...
        * merges partial_name files across k_col => final iteration-level file for classification
   2) script_kraken_extract_split_{PREFIX}.sh
@@ -79,7 +79,7 @@ def get_full_path(base_dir, filename):
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Build scripts for pipeline that merges references for multiple PSVs into a single .fna, "
+            "Build scripts for pipeline that merges references for multiple GSVs into a single .fna, "
             "runs ISS once (and flash to merge R1/R2), merges partial samples across k_col for classification, "
             "and calls rename_sample_files.py => rename_headers.py. The themisto + mSWEEP sections remain intact."
         )
@@ -110,12 +110,12 @@ def main():
     extract_reads_taxid = str(params.get("extract_reads_taxid", "75985"))
     extract_reads_options = params.get("extract_reads_options", "--include-children")
     num_iters = params.get("num_iters", 100)
-    num_PSV_list = params.get("num_PSV_list", [0,1,3,5,7,9])
+    num_GSV_list = params.get("num_GSV_list", [0,1,3,5,7,9])
     num_reads_options = params.get("num_reads_options", [10000,20000])
     threads = params.get("threads", 48)
     segment_length = params.get("segment_length", 150)
-    num_genomes_per_PSV = params.get("num_genomes_per_PSV", 5)
-    output_name_prefix = params.get("output_name_prefix", "set1_100i_NTcore_0conf")
+    num_genomes_per_GSV = params.get("num_genomes_per_GSV", 5)
+    output_name_prefix = params.get("output_name_prefix", "default_output_prefix")
     tmp_build = params.get("tmp_build", "$TMPDIR")
 
     # Output scripts
@@ -162,28 +162,28 @@ def main():
     print("Building script:", script_build_reads)
     with open(script_build_reads, 'w') as build_out:
 
-        for numPSV in num_PSV_list:
-            build_out.write(f"\n# ====== Building samples for numPSV={numPSV} ======\n")
+        for numGSV in num_GSV_list:
+            build_out.write(f"\n# ====== Building samples for numGSV={numGSV} ======\n")
 
             for iteration in range(1, num_iters+1):
-                build_out.write(f"\n# - Starting megasample creation for numPSV={numPSV}\n")
+                build_out.write(f"\n# - Starting megasample creation for numGSV={numGSV}\n")
                 build_out.write(f"# --- Iteration {iteration} ---\n")
 
-                iter_key = (numPSV, iteration)
+                iter_key = (numGSV, iteration)
                 iteration_to_renamed[iter_key] = []
 
                 for k_idx, k_col in enumerate(k_columns):
                     build_out.write(f"\n# (k_col={k_col})\n")
 
-                    if numPSV == 0:
+                    if numGSV == 0:
                         # Off-target => pick references => run ISS => run flash => partial_name
                         all_nt = [
                             f for f in os.listdir(nontarget_genome_dir)
                             if f.endswith(".fna") or f.endswith(".fna.gz")
                         ]
-                        chosen_nt = random.sample(all_nt, min(num_genomes_per_PSV, len(all_nt)))
+                        chosen_nt = random.sample(all_nt, min(num_genomes_per_GSV, len(all_nt)))
 
-                        tmp_cat = f"{tmp_build}/iter_{iteration}_0PSVs_{k_col}.fna"
+                        tmp_cat = f"{tmp_build}/iter_{iteration}_0GSVs_{k_col}.fna"
                         build_out.write(f"rm -f {tmp_cat}\n")
                         for gfName in chosen_nt:
                             real_path = get_full_path(nontarget_genome_dir, gfName)
@@ -193,16 +193,16 @@ def main():
                                 build_out.write(f"cat {real_path} >> {tmp_cat}\n")
 
                         read_count = random.choice(num_reads_options)
-                        # Use the same naming approach as the >0 PSVs branch
-                        iss_prefix = f"{tmp_build}/iter_{iteration}XX{numPSV}_PSVsXX{k_col}_iss"
-                        nodir_prefix = f"iter_{iteration}XX{numPSV}_PSVsXX{k_col}_iss"
+                        # Use the same naming approach as the >0 GSVs branch
+                        iss_prefix = f"{tmp_build}/iter_{iteration}XX{numGSV}_GSVsXX{k_col}_iss"
+                        nodir_prefix = f"iter_{iteration}XX{numGSV}_GSVsXX{k_col}_iss"
 
                         build_out.write(
                             f"iss generate --genomes {tmp_cat} --n_reads {read_count} --model NovaSeq "
                             f"--cpus {threads} --output {iss_prefix} --compress --quiet --fragment-length 311 --fragment-length-sd 50\n"
                         )
 
-                        partial_name = f"{iteration}XX{numPSV}_PSVsXX{k_col}XXoff_target"
+                        partial_name = f"{iteration}XX{numGSV}_GSVsXX{k_col}XXoff_target"
 
                         # Use flash to merge R1 & R2
                         build_out.write(
@@ -234,51 +234,51 @@ def main():
                         sample_map[partial_name] = "off_target"
 
                     else:
-                        # numPSV>0 => combine multiple PSVs => single ISS => flash => partial_name
-                        all_col_psvs = list(set(x[2][k_idx] for x in genome_data))
-                        if not all_col_psvs:
-                            build_out.write(f"# WARNING: no psv in k_col={k_col}\n")
+                        # numGSV>0 => combine multiple GSVs => single ISS => flash => partial_name
+                        all_col_GSVs = list(set(x[2][k_idx] for x in genome_data))
+                        if not all_col_GSVs:
+                            build_out.write(f"# WARNING: no GSV in k_col={k_col}\n")
                             continue
 
-                        selected_psvs = random.sample(all_col_psvs, min(numPSV, len(all_col_psvs)))
-                        build_out.write(f"# selected PSVs => {selected_psvs}\n")
+                        selected_GSVs = random.sample(all_col_GSVs, min(numGSV, len(all_col_GSVs)))
+                        build_out.write(f"# selected GSVs => {selected_GSVs}\n")
 
-                        tmp_cat = f"{tmp_build}/iter_{iteration}_{k_col}_PSVs_combined.fna"
+                        tmp_cat = f"{tmp_build}/iter_{iteration}_{k_col}_GSVs_combined.fna"
                         build_out.write(f"rm -f {tmp_cat}\n")
 
-                        psv_labels = []
-                        for psv_val in selected_psvs:
-                            matched = [xx for xx in genome_data if xx[2][k_idx] == psv_val]
-                            chosen_g = random.sample(matched, min(num_genomes_per_PSV, len(matched)))
+                        GSV_labels = []
+                        for GSV_val in selected_GSVs:
+                            matched = [xx for xx in genome_data if xx[2][k_idx] == GSV_val]
+                            chosen_g = random.sample(matched, min(num_genomes_per_GSV, len(matched)))
 
-                            psv_fna = f"{tmp_build}/iter_{iteration}_{psv_val}_unrenamed.fna"
-                            build_out.write(f"rm -f {psv_fna}\n")
+                            GSV_fna = f"{tmp_build}/iter_{iteration}_{GSV_val}_unrenamed.fna"
+                            build_out.write(f"rm -f {GSV_fna}\n")
                             for (gFile, gName, _anns) in chosen_g:
                                 real_path = get_full_path(target_genome_dir, gFile)
                                 if gFile.endswith('.gz'):
-                                    build_out.write(f"zcat {real_path} >> {psv_fna}\n")
+                                    build_out.write(f"zcat {real_path} >> {GSV_fna}\n")
                                 else:
-                                    build_out.write(f"cat {real_path} >> {psv_fna}\n")
+                                    build_out.write(f"cat {real_path} >> {GSV_fna}\n")
 
-                            psv_fna_ren = f"{tmp_build}/iter_{iteration}_{psv_val}_renamed.fna"
+                            GSV_fna_ren = f"{tmp_build}/iter_{iteration}_{GSV_val}_renamed.fna"
                             build_out.write(
-                                f"python3 {bin_dir}/rename_headers.py --input {psv_fna} --sample_id \"{psv_val}\" "
-                                f"--output {psv_fna_ren}\n"
+                                f"python3 {bin_dir}/rename_headers.py --input {GSV_fna} --sample_id \"{GSV_val}\" "
+                                f"--output {GSV_fna_ren}\n"
                             )
-                            build_out.write(f"cat {psv_fna_ren} >> {tmp_cat}\n")
-                            build_out.write(f"rm {psv_fna} {psv_fna_ren}\n")
-                            psv_labels.append(psv_val)
+                            build_out.write(f"cat {GSV_fna_ren} >> {tmp_cat}\n")
+                            build_out.write(f"rm {GSV_fna} {GSV_fna_ren}\n")
+                            GSV_labels.append(GSV_val)
 
                         read_count = random.choice(num_reads_options)
-                        iss_prefix = f"{tmp_build}/iter_{iteration}XX{numPSV}_PSVsXX{k_col}_iss"
-                        nodir_prefix= f"iter_{iteration}XX{numPSV}_PSVsXX{k_col}_iss"
+                        iss_prefix = f"{tmp_build}/iter_{iteration}XX{numGSV}_GSVsXX{k_col}_iss"
+                        nodir_prefix= f"iter_{iteration}XX{numGSV}_GSVsXX{k_col}_iss"
                         build_out.write(
                             f"iss generate --genomes {tmp_cat} --n_reads {read_count} --model NovaSeq "
                             f"--cpus {threads} --output {iss_prefix} --compress --quiet --fragment-length 311 --fragment-length-sd 50\n"
                         )
 
-                        psv_str = "_".join(psv_labels)
-                        partial_name= f"{iteration}XX{numPSV}_PSVsXX{k_col}XX{psv_str}"
+                        GSV_str = "_".join(GSV_labels)
+                        partial_name= f"{iteration}XX{numGSV}_GSVsXX{k_col}XX{GSV_str}"
                         build_out.write(
                             f"flash -M 120 -o {partial_name} -d {tmp_build} --interleaved-output -z -t {threads} "
                             f"{tmp_build}/{nodir_prefix}_R1.fastq.gz {tmp_build}/{nodir_prefix}_R2.fastq.gz\n"
@@ -308,7 +308,7 @@ def main():
                         sample_map[partial_name] = k_col
 
                 # merges partial_name across k_col => iteration-level final
-                final_merged_iter= f"PSV_{numPSV}_iter_{iteration}_ALL_renamed.fastq.gz"
+                final_merged_iter= f"GSV_{numGSV}_iter_{iteration}_ALL_renamed.fastq.gz"
                 partial_list= iteration_to_renamed[iter_key]
                 if partial_list:
                     build_out.write(
@@ -321,9 +321,9 @@ def main():
 
     print("Building:", script_kraken_extract_split)
     with open(script_kraken_extract_split, 'w') as cl_out:
-        for numPSV in num_PSV_list:
+        for numGSV in num_GSV_list:
             for iteration in range(1, num_iters+1):
-                final_merged = f"PSV_{numPSV}_iter_{iteration}_ALL_renamed.fastq.gz"
+                final_merged = f"GSV_{numGSV}_iter_{iteration}_ALL_renamed.fastq.gz"
                 final_merged_path = f"{cat_reads_dir}/{final_merged}"
 
                 for conf in kraken_confidence:
@@ -333,7 +333,7 @@ def main():
                     kr_raw = f"{tmp_build}/{final_merged}.conf{conf_str}.kraken.raw"
                     extracted_name = final_merged.replace('.fastq.gz', f"_conf{conf_str}_extracted.fastq")
                     extracted_path = f"{tmp_build}/{extracted_name}"
-                    cl_out.write(f"\n# - Starting megasample classification for num_PSV={numPSV}, iteration={iteration}\n")
+                    cl_out.write(f"\n# - Starting megasample classification for num_GSV={numGSV}, iteration={iteration}\n")
                     cl_out.write(f"\n# Kraken2 classification at confidence {conf}\n")
                     cl_out.write(
                         f"kraken2 --db {krakendb} --threads {threads} --confidence {conf} "

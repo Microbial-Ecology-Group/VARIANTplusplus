@@ -1,18 +1,19 @@
-output_name_prefix=set_2i_NTcore_0conf_error_miseq20
+#Rename this for your benchmarking run
+output_name_prefix=test_benchmarking
 
 # Genome locations
-target_genome_dir=/scratch/user/u.ed124096/Mh_benchmarking/Mh_2435_genomes
-nontarget_genome_dir=/scratch/user/enriquedoster/Mh_validation_paper_results/NonMh_Past_genomes/
+target_genome_dir=/scratch/user/u.ed124096/Mh_benchmarking/test_benchmarking/test_on_target_genomes/
+nontarget_genome_dir=/scratch/user/u.ed124096/Mh_benchmarking/test_benchmarking/test_off_target_genomes/
 
 # TSV file with ANI groupings in each column
-input_file=/scratch/user/u.ed124096/Mh_benchmarking/Error_simulated_samples/2025_ANI_groupings_2-30.tsv
+input_file=2025_ANI_groupings_2-30.tsv
 
 # Path to themisto database
-themisto_index=/scratch/user/u.ed124096/Mh_benchmarking/ANI/2025_themisto_index_no
+themisto_index=2025_themisto_index_no
 
 # Kraken database and read extraction arguments
 krakendb=/scratch/user/u.ed124096/nt_core_kraken_db
-kraken_confidence=0
+kraken_confidence=[0,0.1,0.2,0.3,0.4,0.5]
 # Taxa id to filter
 extract_reads_taxid=75985
 # Extra argument to filter reads classified as taxid and lower levels
@@ -20,12 +21,12 @@ extract_reads_options=--include-children
 
 # Benchmarking metrics
 num_iters=2
-num_PSV_list=[0,1,3,5,7,9]
+num_GSV_list=[0,1,3,5,7,9]
 num_reads_options=[50000,100000]
 
 segment_length=150
-num_genomes_per_PSV=2
+num_genomes_per_GSV=2 # Eventually bump this up to at least 5
 
 # Run specifications
 threads=48
-tmp_build=temp_conf0
+tmp_build=temp_conf

@@ -149,7 +149,9 @@ process runkraken_extract {
 process runkraken_merged_extract {
 
     tag   { sample_id }
-    label "large_long"
+    label {
+        params.kraken_options.join(' ').contains('--memory-mapping') ? 'small_memory_long_time' : 'large_long'
+    }
 
     publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
         saveAs: { fn ->
@@ -174,7 +176,7 @@ process runkraken_merged_extract {
     script:
     """
     # ── merged file ─────────────────────────────────────────────
-    ${KRAKEN2} --db ${krakendb} --memory-mapping --confidence ${kraken_confidence} \
+    ${KRAKEN2} --db ${krakendb} ${kraken_options} --confidence ${kraken_confidence} \
                --threads ${task.cpus} \
                --report ${sample_id}.merged.kraken.report \
                ${merged} \
@@ -189,7 +191,7 @@ process runkraken_merged_extract {
     pigz --processes ${task.cpus} ${sample_id}_Mh_extracted_merged.fastq
 
     # ── unmerged (now interleaved single) ───────────────────────
-    ${KRAKEN2} --db ${krakendb} --memory-mapping --confidence ${kraken_confidence} \
+    ${KRAKEN2} --db ${krakendb} ${kraken_options} --confidence ${kraken_confidence} \
                --threads ${task.cpus} \
                --report ${sample_id}.unmerged.kraken.report \
                ${unmerged} \

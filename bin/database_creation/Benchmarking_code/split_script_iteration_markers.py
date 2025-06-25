@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 import sys
+import os
+
+# SBATCH header template
+sbatch_header_template = (
+    "#!/bin/bash\n"
+    "#SBATCH -J {jobname}\n"
+    "#SBATCH -o scripts/log_{jobname}.out\n"
+    "#SBATCH -t 24:00:00\n"
+    "#SBATCH --mem=40G\n"
+    "#SBATCH --nodes=1\n"
+    "#SBATCH --ntasks=1\n"
+    "#SBATCH --cpus-per-task=48\n"
+    "#SBATCH --ntasks-per-node=1\n\n"
+)
+
+scripts_dir = "scripts"
+os.makedirs(scripts_dir, exist_ok=True)
 
 def split_by_iteration_markers(input_file, num_output_files, name_prefix):
     """
@@ -69,8 +86,9 @@ def split_by_iteration_markers(input_file, num_output_files, name_prefix):
     for i in range(num_output_files):
         part_index = i + 1
 
-        cmd_filename = f"{name_prefix}_part_{part_index}.sh"
-        sbatch_filename = f"{name_prefix}_part_{part_index}.sbatch"
+        cmd_filename = f"{scripts_dir}/{name_prefix}_part_{part_index}.sh"
+        sbatch_filename = f"{scripts_dir}/{name_prefix}_part_{part_index}.sbatch"
+        jobname = f"{name_prefix}_{part_index}"
 
         # Count marker & sample lines in this part
         marker_count_file = 0
@@ -102,21 +120,9 @@ def split_by_iteration_markers(input_file, num_output_files, name_prefix):
 
                 cmd_f.write(line)
 
-        # Prepare the minimal SBATCH file
-        sbatch_header = (
-            "#!/bin/bash\n"
-            f"#SBATCH -J {name_prefix}_{part_index}\n"
-            f"#SBATCH -o log_{name_prefix}_{part_index}.out\n"
-            "#SBATCH -t 24:00:00\n"
-            "#SBATCH --mem=40G\n"
-            "#SBATCH --nodes=1\n"
-            "#SBATCH --ntasks=1\n"
-            "#SBATCH --cpus-per-task=48\n"
-            "#SBATCH --ntasks-per-node=1\n\n"
-        )
-
+        # Prepare the SBATCH file using the template
         with open(sbatch_filename, 'w') as sb_f:
-            sb_f.write(sbatch_header)
+            sb_f.write(sbatch_header_template.format(jobname=jobname))
             sb_f.write(f"echo 'Launching {cmd_filename} in script {part_index}'\n")
             sb_f.write(f"bash {cmd_filename}\n")
 

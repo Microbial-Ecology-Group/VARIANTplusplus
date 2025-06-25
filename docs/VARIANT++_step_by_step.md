@@ -11,8 +11,9 @@
 8. [Explore the results](#explore-the-results)
 
 Make sure that you have:
-1. An updated VARIANT++_env and github repository
-** Install it with conda from the VARIANT++ directory with: 
+1. An updated VARIANT++_env and github repository.
+
+Install it with conda from the VARIANT++ directory with: 
 ```
 git clone https://github.com/Microbial-Ecology-Group/VARIANTplusplus.git
 
@@ -37,7 +38,7 @@ tar -xzvf k2_core_nt_20241228.tar.gz -C k2_core_nt_20241228/
 
 ### Other considerations
 
-* I recommend using the flag "--profile local_slurm". 
+* I recommend using the flag "-profile local_slurm". 
     * This will submit individual processes for each job based on what they typically require.
     * You would need to submit an sbatch script with a header that looks like this:
 
@@ -109,14 +110,14 @@ nextflow run main_VARIANT++.nf --pipeline GSV_3 --output GSV_analysis --merged_r
 
 Parameters that have to change:
 * `--pipeline` ==> `--pipeline GSV_4`
-* `--merged_reads`  ==> `--merged_reads 'GSV_analysis/Deduped_reads/*{merged,unmerged}.dedup.fastq.gz'`
+* `--merged_reads`  ==> `--merged_reads 'GSV_analysis/HostRemoval/NonHostFastq/*.{merged,unmerged}.non.host.fastq.gz'`
 * `--kraken_db` ==> `--kraken_db /path/to/k2_core_nt_20241228`
 
 
 Example command:
 
 ```
-nextflow run main_VARIANT++.nf --pipeline GSV_4 --output GSV_analysis --merged_reads 'GSV_analysis/HostRemoval/NonHostFastq/*_{merged,unmerged}.non.host.fastq.gz' -profile local_slurm
+nextflow run main_VARIANT++.nf --pipeline GSV_4 --output GSV_analysis --merged_reads 'GSV_analysis/HostRemoval/NonHostFastq/*.{merged,unmerged}.non.host.fastq.gz' -profile local_slurm
 ```
 
 ## Step 5: Perform classification with themisto and mSweep
