@@ -127,7 +127,7 @@ If you just did the step above, you should still be in the "bin/" directory. We'
 
 ```
 # Navigate to directory from the VARIANT++ "bin/" dir
-cd Benchmarking_code/
+cd database_creation/Benchmarking_code/
 
 # Get path
 pwd
@@ -145,16 +145,17 @@ source ~/.bashrc
 ### 3.1.2 Make themisto database
 
 We'll use your target genomes to create a themisto database.
+If you get an error, I think it's because themisto requires unzipped files. Sorry haven't tested this extensively.
 
 ```
-ls -d /scratch/user/u.ed124096/Mh_benchmarking/Mh_2435_genomes/*.fna > 2025_themisto_input_Mh_sequences.txt
+ls -d /path/to/your/on_target_genomes/*.fna > 2025_themisto_input_genomes.txt
 
-themisto build -k 21 -i 2025_themisto_input_Mh_sequences.txt -o 2025_themisto_index_no --temp-dir tmp -t 2 --mem-gigas 4
+themisto build -k 21 -i 2025_themisto_input_genomes.txt -o 2025_themisto_index_no --temp-dir tmp -t 2 --mem-gigas 4
 ```
 
 ### 3.1.3 Confirm ANI clusters are in same order as themisto db
 
-Refer back to the file we made in R with all genomes in the first column and subsequent colums named "k_#". Open it with excel and make sure you sort all the rows to that they match the order of the genomes in the file you just made during the creation of the themisto database, in this case `2025_themisto_input_Mh_sequences.txt`. Save it with the fixed order, we'll be pointing to this below.
+Refer back to the file we made in R with all genomes in the first column and subsequent colums named "k_#". Open it with excel and make sure you sort all the rows to that they match the order of the genomes in the file you just made during the creation of the themisto database, in this case `2025_themisto_input_genomes.txt`. Save it with the fixed order, we'll be pointing to this below.
 
 ### 3.1.4 Download kraken database
 
@@ -174,6 +175,7 @@ tar -xzvf k2_core_nt_20241228.tar.gz -C k2_core_nt_20241228/
 
 ### 3.2.1 Make scripts 
 1. Modify the `params.txt` file to point to the corresponding directories to your genomes, the themisto database, ANI annotatinos, and kraken database.
+    - The file is here `VARIANT++/bin/database_creation/Benchmarking_code/params.txt`
     - Only fill out the variables as present in the template, don't add any quotes, spaces, or comments after the variables. 
     - I recommend running a test with only a few simulations, low number of genomes per GSV, and maybe reduce the kraken confidence scores that's included. Once you can get through all steps, you can come back and modify the `params.txt` file again with the full simulation paramters.
 2. Run the `generate_simulated_samples_byConf.py` script which will make three seperate scripts that we'll run in portions.

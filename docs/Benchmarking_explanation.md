@@ -33,6 +33,7 @@ In short, you prepare a bunch of files and databases. Then you run the benchmark
 ## 4. Workflow Breakdown
 
 1. **Parse configuration** (`params.txt`): key/value file with paths, iteration counts, GSV list, Kraken confidences, etc.  
+   - This file can be found in `VARIANT++/bin/database_creation/Benchmarking_code`
 2. **Create directories**:  
    ```
    <PREFIX>_cat_reads/     # merged FASTQs
