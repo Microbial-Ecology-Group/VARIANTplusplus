@@ -92,7 +92,7 @@ process runkraken_double_extract {
    output:
       tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
       path("${sample_id}.kraken.report"), emit: kraken_report
-      tuple val(sample_id), path("${sample_id}_Mh_extracted_R*.fastq.gz"), emit: extracted_reads
+      tuple val(sample_id), path("${sample_id}_extracted_R*.fastq.gz"), emit: extracted_reads
 
      """
      ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.nt.kraken.report > ${sample_id}.nt.kraken.raw
@@ -101,9 +101,9 @@ process runkraken_double_extract {
 
      ${KRAKEN2} --db ${krakendb_inter} --confidence ${kraken_confidence} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${task.cpus} --report ${sample_id}.family.kraken.report > ${sample_id}.family.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_double} --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_double} --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
     
-    pigz --processes ${task.cpus} *Mh_extracted*
+    pigz --processes ${task.cpus} *extracted*
 
     rm temp*
 
@@ -133,14 +133,14 @@ process runkraken_extract {
    output:
       tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
       path("${sample_id}.kraken.report"), emit: kraken_report
-      tuple val(sample_id), path("${sample_id}_Mh_extracted_R*.fastq.gz"), emit: extracted_reads
+      tuple val(sample_id), path("${sample_id}_extracted_R*.fastq.gz"), emit: extracted_reads
 
      """
     ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_Mh_extracted_R1.fastq -o2 ${sample_id}_Mh_extracted_R2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
 
-    pigz --processes ${task.cpus} *Mh_extracted*
+    pigz --processes ${task.cpus} *extracted*
 
     """
 }
@@ -167,11 +167,11 @@ process runkraken_merged_extract {
     output:
         tuple val(sample_id), path("${sample_id}.merged.kraken.raw"),      emit: kraken_raw_merged
         path("${sample_id}.merged.kraken.report"),                         emit: kraken_report_merged
-        tuple val(sample_id), path("${sample_id}_Mh_extracted_merged.fastq.gz"), emit: extracted_merged
+        tuple val(sample_id), path("${sample_id}_extracted_merged.fastq.gz"), emit: extracted_merged
 
         tuple val(sample_id), path("${sample_id}.unmerged.kraken.raw"),    emit: kraken_raw_unmerged
         path("${sample_id}.unmerged.kraken.report"),                       emit: kraken_report_unmerged
-        tuple val(sample_id), path("${sample_id}_Mh_extracted_unmerged.fastq.gz"), emit: extracted_unmerged
+        tuple val(sample_id), path("${sample_id}_extracted_unmerged.fastq.gz"), emit: extracted_unmerged
 
     script:
     """
@@ -186,9 +186,9 @@ process runkraken_merged_extract {
         --max 1000000000 --report ${sample_id}.merged.kraken.report \
         --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
         --fastq-output -s ${merged} \
-        -o ${sample_id}_Mh_extracted_merged.fastq
+        -o ${sample_id}_extracted_merged.fastq
 
-    pigz --processes ${task.cpus} ${sample_id}_Mh_extracted_merged.fastq
+    pigz --processes ${task.cpus} ${sample_id}_extracted_merged.fastq
 
     # ── unmerged (now interleaved single) ───────────────────────
     ${KRAKEN2} --db ${krakendb} ${kraken_options} --confidence ${kraken_confidence} \
@@ -201,9 +201,9 @@ process runkraken_merged_extract {
         --max 1000000000 --report ${sample_id}.unmerged.kraken.report \
         --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
         --fastq-output -s ${unmerged} \
-        -o ${sample_id}_Mh_extracted_unmerged.fastq
+        -o ${sample_id}_extracted_unmerged.fastq
 
-    pigz --processes ${task.cpus} ${sample_id}_Mh_extracted_unmerged.fastq
+    pigz --processes ${task.cpus} ${sample_id}_extracted_unmerged.fastq
     """
 }
 

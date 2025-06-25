@@ -2,7 +2,6 @@
 """
 Parse & summarise mSWEEP abundance tables, supporting several filtering modes.
 
-2025-05 • adds `rel_abund_by_GSV`
 """
 
 import os, glob, argparse, re, pandas as pd

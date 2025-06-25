@@ -436,7 +436,7 @@ process MergedParsemSweepResults {
         --msweep_dir . \
         --reads_dir  $baseDir/${params.output}/HostRemoval/NonHostFastq/ \
         -o mSweep_results \
-        --filter-mode rel_abund_by_psv
+        --filter-mode rel_abund_by_GSV
     """
 }
 
