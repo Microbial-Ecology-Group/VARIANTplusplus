@@ -26,7 +26,7 @@ def split_extracted_reads(input_fasta, output_dir):
     current_sample_id = None
     for line in fin:
         if line.startswith(">"):
-            header = line[1:].strip()  # e.g. "45|100XX0_PSVsXXoff_targetXX20000XX.fasta.gz|M01835:42:..."
+            header = line[1:].strip()  # e.g. "45|100XX0_GSVsXXoff_targetXX20000XX.fasta.gz|M01835:42:..."
             parts = header.split("|", 2)  # up to 3 parts
             if len(parts) != 3:
                 print(f"WARNING: malformed header: {header}")

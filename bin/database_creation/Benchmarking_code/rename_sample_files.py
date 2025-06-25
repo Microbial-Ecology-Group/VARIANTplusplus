@@ -8,14 +8,14 @@ import argparse
 rename_sample_files.py
 
 Usage Example:
-  python rename_sample_files.py --input /path/to/1XX3_PSVsXXk_4XX1_2_3.fastq.gz --results-dir /path/to/results
+  python rename_sample_files.py --input /path/to/1XX3_GSVsXXk_4XX1_2_3.fastq.gz --results-dir /path/to/results
 
 This script:
   1) Parses a FASTQ or FASTQ.GZ file line by line.
-  2) For every header line ('@...'), extracts the PSV from between the 1st and 2nd '|' chars (if present).
-  3) Counts how many reads belong to each unique PSV.
-  4) If no PSVs are found, label the sample "off_target" with the total read count.
-  5) Builds a suffix like "PSV1.5000_PSV2.3000" (or "off_target.12345") sorted by PSV name.
+  2) For every header line ('@...'), extracts the GSV from between the 1st and 2nd '|' chars (if present).
+  3) Counts how many reads belong to each unique GSV.
+  4) If no GSVs are found, label the sample "off_target" with the total read count.
+  5) Builds a suffix like "GSV1.5000_GSV2.3000" (or "off_target.12345") sorted by GSV name.
   6) Writes a line to results-dir/counts_{basename}.txt:
        <originalFileName>\t<newFileName>
      where <newFileName> is the original file name but with everything after the last 'XX'
@@ -25,7 +25,7 @@ No files are actually renamed. It's just a reference file mapping old to new nam
 """
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Parse FASTQ headers to count PSVs, store old->new name in a text file.")
+    p = argparse.ArgumentParser(description="Parse FASTQ headers to count GSVs, store old->new name in a text file.")
     p.add_argument("--input", required=True, help="Path to .fastq/.fastq.gz file to parse. We'll not rename; just record.")
     p.add_argument("--results-dir", required=True, help="Directory where we write counts_<basename>.txt")
     return p.parse_args()
@@ -46,29 +46,29 @@ def main():
     else:
         fin = open(in_file, "r")
 
-    psv_counts = {}
+    GSV_counts = {}
     total_reads = 0  # We'll track how many '@' (header) lines appear
 
-    # For each header line starting with "@", parse the PSV from splitted[1].
+    # For each header line starting with "@", parse the GSV from splitted[1].
     for line in fin:
         line=line.rstrip("\n")
         if line.startswith("@"):
             total_reads += 1
             splitted=line.split("|")
             if len(splitted) >= 3:
-                psv_id = splitted[1]  # e.g. "PSV2"
-                psv_counts[psv_id] = psv_counts.get(psv_id,0) + 1
+                GSV_id = splitted[1]  # e.g. "GSV2"
+                GSV_counts[GSV_id] = GSV_counts.get(GSV_id,0) + 1
 
     fin.close()
 
-    # If we found no PSVs => treat as off_target w/ total_reads
-    if not psv_counts:
-        print(f"[INFO] No PSVs found in {in_file} => marking this as off_target with total read count = {total_reads}")
-        psv_counts["off_target"] = total_reads
+    # If we found no GSVs => treat as off_target w/ total_reads
+    if not GSV_counts:
+        print(f"[INFO] No GSVs found in {in_file} => marking this as off_target with total read count = {total_reads}")
+        GSV_counts["off_target"] = total_reads
 
-    # Build suffix: e.g. "PSV1.5000_PSV2.3000" or "off_target.12345"
-    items = sorted(psv_counts.items(), key=lambda x: x[0]) 
-    suffix_pieces = [f"{psv}.{count}" for (psv, count) in items]
+    # Build suffix: e.g. "GSV1.5000_GSV2.3000" or "off_target.12345"
+    items = sorted(GSV_counts.items(), key=lambda x: x[0]) 
+    suffix_pieces = [f"{GSV}.{count}" for (GSV, count) in items]
     new_suffix = "_".join(suffix_pieces)
 
     # Original file name (without path)
@@ -103,7 +103,7 @@ def main():
     with open(outfilename, "w") as outf:
         outf.write(f"{old_basename}\t{new_name}\n")
 
-    print(f"[INFO] Wrote PSV counts-based new name to: {outfilename}")
+    print(f"[INFO] Wrote GSV counts-based new name to: {outfilename}")
     print(f"[INFO] Original => {old_basename}")
     print(f"[INFO] Proposed => {new_name}")
 

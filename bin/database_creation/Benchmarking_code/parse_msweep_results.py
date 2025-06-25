@@ -2,25 +2,25 @@
 """
 Parse & summarise mSWEEP abundance tables, supporting several filtering modes.
 
-2025-05 • adds `rel_abund_by_psv`
+2025-05 • adds `rel_abund_by_GSV`
 """
 
 import os, glob, argparse, re, pandas as pd
 from collections import defaultdict
 
 # ---------------------------------------------------------------------
-# editable per-PSV relative-abundance thresholds
+# editable per-GSV relative-abundance thresholds
 # ---------------------------------------------------------------------
-#psv_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007}          # 99 quantile COnf 0.1
-#psv_rel_map = {1: 0.00063 , 2: 0.00002,3:0.00052 ,4:0.00059 ,5:0.0002 ,6:0.00029 ,7:0.00006 ,8:0.0007}          # ← tweak as required
-#psv_rel_map = {1: 0.00107 , 2:0.000777,3:0.000953 ,4:0.00293 ,5:0.00145 ,6:0.000600 ,7:0.000598 ,8:0.00140}          # ← conf 0.1, max values
-psv_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
+#GSV_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007}          # 99 quantile COnf 0.1
+#GSV_rel_map = {1: 0.00063 , 2: 0.00002,3:0.00052 ,4:0.00059 ,5:0.0002 ,6:0.00029 ,7:0.00006 ,8:0.0007}          # ← tweak as required
+#GSV_rel_map = {1: 0.00107 , 2:0.000777,3:0.000953 ,4:0.00293 ,5:0.00145 ,6:0.000600 ,7:0.000598 ,8:0.00140}          # ← conf 0.1, max values
+GSV_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
 
 
 
 
 # ───────── helpers ────────────────────────────────────────────────────
-def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, psv_rel_map=None):
+def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, GSV_rel_map=None):
     """
     Return a filtered (and possibly modified) copy of *df*.
 
@@ -47,10 +47,10 @@ def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, psv_rel_map=None):
         keep = df.rel_abund > rel_thr
 
     # --- NEW MODE -----------------------------------------------------
-    elif mode == "rel_abund_by_psv":
-        # for each row subtract psv-specific threshold
+    elif mode == "rel_abund_by_GSV":
+        # for each row subtract GSV-specific threshold
         def adjust(row):
-            thr_rel = psv_rel_map.get(int(row.taxon), rel_thr)
+            thr_rel = GSV_rel_map.get(int(row.taxon), rel_thr)
             return max(0, row.abs_count - denom_reads * thr_rel)
 
         df["abs_count"] = df.apply(adjust, axis=1)
@@ -67,7 +67,7 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
                          rel_abund_threshold=0.01, detection_threshold=10):
 
     summarized_rows = []
-    found_psvs_all  = defaultdict(dict)
+    found_GSVs_all  = defaultdict(dict)
     file_bucket     = defaultdict(lambda: {"merged": None, "unmerged": None})
 
     # 1 · collect all *_abundances.txt
@@ -107,18 +107,18 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
                         counts_name = cols[1].replace(".fastq.gz", "")
                         break
         try:
-            iter_num, numPSVs, k_col, genome_info = counts_name.split("XX")
+            iter_num, numGSVs, k_col, genome_info = counts_name.split("XX")
         except Exception:                                   # fallback
-            iter_num, numPSVs, k_col, genome_info = base.split("XX")
+            iter_num, numGSVs, k_col, genome_info = base.split("XX")
 
-        # expected PSVs / total input reads
-        if numPSVs == "0_PSVs":
-            exp_psvs     = "off_target"
+        # expected GSVs / total input reads
+        if numGSVs == "0_GSVs":
+            exp_GSVs     = "off_target"
             total_input  = sum(int(p.split(".")[1]) for p in genome_info.split("_") if "." in p)
         else:
             tmp          = {p.split(".")[0]: int(p.split(".")[1])
                             for p in genome_info.split("_") if "." in p}
-            exp_psvs     = tmp
+            exp_GSVs     = tmp
             total_input  = sum(tmp.values())
 
         # read abundance table
@@ -132,12 +132,12 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
                 elif ln.startswith("#num_aligned"):
                     n_aligned = int(ln.split("\t")[1])
                 elif ln and not ln.startswith("#"):
-                    psv, rel = ln.split("\t")
-                    rows.append((psv, float(rel)))
+                    GSV, rel = ln.split("\t")
+                    rows.append((GSV, float(rel)))
 
         df = pd.DataFrame(rows, columns=["taxon", "rel_abund"])
         df["abs_count"] = df.rel_abund * (n_aligned or 0)
-        found_psvs_dict = dict(zip(df.taxon, df.rel_abund.round(6)))
+        found_GSVs_dict = dict(zip(df.taxon, df.rel_abund.round(6)))
 
         # per-file filtering only for classic rel_abund mode
         if filter_mode == "rel_abund":
@@ -150,8 +150,8 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
 
         status_flag = "passed" if kept_dic else "filtered"
 
-        found_psvs_all[(base, rtype, srcdir)] = {
-            "found_psv_groups": found_psvs_dict,
+        found_GSVs_all[(base, rtype, srcdir)] = {
+            "found_GSV_groups": found_GSVs_dict,
             "counts_name"     : counts_name
         }
         file_bucket[(base, iter_num, srcdir)][rtype] = {
@@ -163,7 +163,7 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
             "num_aligned"   : n_aligned,
             "total_input"   : total_input,
             "k_col"         : k_col,
-            "expected_PSVs" : exp_psvs
+            "expected_GSVs" : exp_GSVs
         }
 
         summarized_rows.append({
@@ -175,11 +175,11 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
             "num_reads"          : n_reads,
             "num_aligned"        : n_aligned,
             "total_input_reads"  : total_input,
-            "numPSVs"            : numPSVs,
+            "numGSVs"            : numGSVs,
             "k_col"              : k_col,
-            "expected_PSVs"      : exp_psvs,
-            "filtered_psv_groups": kept_dic,
-            "found_psv_groups"   : found_psvs_dict,
+            "expected_GSVs"      : exp_GSVs,
+            "filtered_GSV_groups": kept_dic,
+            "found_GSV_groups"   : found_GSVs_dict,
             "filter_mode"        : filter_mode,
             "rel_abund_threshold": rel_abund_threshold,
             "count_threshold"    : detection_threshold,
@@ -214,16 +214,16 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
                                   denom_ra)
         elif filter_mode in {"count", "count_rel_abund",
                              "sub_count", "sub_count_rel_abund",
-                             "rel_abund_by_psv"}:
+                             "rel_abund_by_GSV"}:
             if   filter_mode == "count_rel_abund":
                 denom = total_aligned
-            elif filter_mode in {"sub_count_rel_abund", "rel_abund_by_psv"}:
+            elif filter_mode in {"sub_count_rel_abund", "rel_abund_by_GSV"}:
                 denom = total_input
             else:
                 denom = 1
             df_sum = apply_filter(df_sum, filter_mode,
                                   rel_abund_threshold, detection_threshold,
-                                  denom, psv_rel_map)
+                                  denom, GSV_rel_map)
 
         comb_dic   = dict(zip(df_sum.taxon, df_sum.abs_count.round(2)))
         status_flag = "passed" if comb_dic else "filtered"
@@ -234,21 +234,21 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
             "read_type"          : "combined",
             "iter_num"           : iter_num,
             "counts_name"        : ";".join(filter(None, [
-                                        found_psvs_all.get((base,"merged"  ,srcdir),{}).get("counts_name",""),
-                                        found_psvs_all.get((base,"unmerged",srcdir),{}).get("counts_name","")])),
+                                        found_GSVs_all.get((base,"merged"  ,srcdir),{}).get("counts_name",""),
+                                        found_GSVs_all.get((base,"unmerged",srcdir),{}).get("counts_name","")])),
             "num_reads"          : (m["num_reads"]  if m else 0) + (u["num_reads"]  if u else 0),
             "num_aligned"        : total_aligned,
             "total_input_reads"  : total_input,
-            "numPSVs"            : sub["merged"]["k_col"] if m else u["k_col"],
+            "numGSVs"            : sub["merged"]["k_col"] if m else u["k_col"],
             "k_col"              : m["k_col"] if m else u["k_col"],
-            "expected_PSVs"      : m["expected_PSVs"] if m else u["expected_PSVs"],
-            "filtered_psv_groups": comb_dic,
-            "found_psv_groups"   : {},
+            "expected_GSVs"      : m["expected_GSVs"] if m else u["expected_GSVs"],
+            "filtered_GSV_groups": comb_dic,
+            "found_GSV_groups"   : {},
             "filter_mode"        : filter_mode,
             "rel_abund_threshold": rel_abund_threshold,
             "count_threshold"    : (
                 total_input * rel_abund_threshold
-                if filter_mode in {"sub_count_rel_abund", "rel_abund_by_psv"}
+                if filter_mode in {"sub_count_rel_abund", "rel_abund_by_GSV"}
                 else detection_threshold),
             "denominator_choice" : (
                 "NA" if filter_mode in {"rel_abund", "rel_abund_combined"}
@@ -276,8 +276,8 @@ if __name__ == "__main__":
                     choices=["rel_abund", "rel_abund_combined",
                              "count", "count_rel_abund",
                              "sub_count_rel_abund", "sub_count",
-                             "rel_abund_by_psv"],
-                    default="rel_abund_by_psv")
+                             "rel_abund_by_GSV"],
+                    default="rel_abund_by_GSV")
     ap.add_argument("--rel-abund-threshold", type=float, default=0.01,
                     help="Global relative-abundance threshold")
     ap.add_argument("--count-threshold",     type=float, default=10,
