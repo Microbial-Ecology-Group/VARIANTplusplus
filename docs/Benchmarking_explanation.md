@@ -43,9 +43,13 @@ In short, you prepare a bunch of files and databases. Then you run the benchmark
 3. **Generate mSWEEP annotation files** (`k_#.msweep.txt`) from the metadata TSV.  
 4. **Write `script_build_reads`** – loops over `num_GSV_list × num_iters × k_columns`.  
    - `numGSV == 0` → simulate off-target samples.  
-   - `numGSV > 0` → select N GSVs, concatenate genomes per GSV, simulate reads.  
+   - `numGSV > 0` → select N GSVs, concatenate genomes per GSV, simulate reads. 
+   -  Once genomes are selected, they are all concatenated => reads are simulated using the Novaseq error profile and the ISS tool based on a random selection of counts based on the `num_reads_options` parameter. Then, we attempt to merge reads using flash. To reduce the number of times we run kraken2 downstream, we modify sample headers to include information about their source and number of reads, then we concatenate the simulated samples for each iteration. 
 5. **Write `script_kraken_extract_split`** – classify each merged FASTQ for every confidence value, then extract & split reads.  
+   - These set of scripts take the concatenated sample files and classifies them using kraken2. Then we extract the reads matching the `extract_reads_taxid` parameter and split them up back up into their individual simulated samples for classification with themisto/mSWEEP on the next step.
 6. **Write `script_themisto_msweep`** – pseudo-align reads and run mSWEEP (all k-columns for off-target, single column for on-target).  
+   - This takes each of our individual simulated samples and runs them through themisto and mSWEEP. 
+   - Off-target simulated samples get processed with all unique ANI cluster annotations.
 7. **Finish** – print a summary of the three generated bash scripts.
 
 ---

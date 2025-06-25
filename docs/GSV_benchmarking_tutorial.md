@@ -274,3 +274,15 @@ done
 # Step 4: Analyzing benchmarking results
 
 **In progress**
+
+## 4.1 Parse msweep results without a filter
+
+
+## 4.2 Analyze off target results and false positive rate in R
+
+### 4.2.1 Pick filtration rates for each GSV
+
+## 4.3 Evaluate classification performance
+
+### 4.3.1 Pick optimal GSV number
+ 

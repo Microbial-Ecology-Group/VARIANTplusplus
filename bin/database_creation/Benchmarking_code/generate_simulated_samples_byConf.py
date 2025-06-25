@@ -167,7 +167,7 @@ def main():
 
             for iteration in range(1, num_iters+1):
                 build_out.write(f"\n# - Starting megasample creation for numGSV={numGSV}\n")
-                build_out.write(f"# --- Iteration {iteration} ---\n")
+                build_out.write(f"# --- Starting iteration {iteration} ---\n")
 
                 iter_key = (numGSV, iteration)
                 iteration_to_renamed[iter_key] = []
@@ -359,6 +359,7 @@ def main():
         for partial_name, col_info in sample_map.items():
             for conf in kraken_confidence:
                 #conf_str = str(conf).replace('.', 'p')
+                run_out.write(f"# --- Starting iteration for conf {conf} ---\n")
                 conf_str = str(conf)
                 merged_paired_path = os.path.join(merged_extracted_reads_dir, partial_name + f"_conf{conf_str}_merged.fastq.gz")
                 split_paired_path  = os.path.join(split_reads_dir, partial_name + f"_conf{conf_str}_unmerged.fastq.gz")

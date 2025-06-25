@@ -32,7 +32,7 @@ extract_reads_options=--include-children
 # Benchmarking metrics
 num_iters=100
 num_GSV_list=[0,1,3,5,7,9]
-num_reads_options=[50000,100000]
+num_reads_options=[250000,500000,1000000,2000000]
 
 segment_length=150
 num_genomes_per_GSV=5

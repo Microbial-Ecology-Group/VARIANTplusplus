@@ -1,153 +1,130 @@
 #!/usr/bin/env python3
-import sys
-import os
+"""
+split_script_iteration_markers.py
 
-# SBATCH header template
-sbatch_header_template = (
+Split a long bash script into N chunks at marker lines and wrap each
+chunk in an SBATCH launcher.
+
+Example
+-------
+python split_script_iteration_markers.py \
+        --input_file bigScript.sh \
+        --num_output_files 20 \
+        --name_prefix myBatch \
+        --mem 250G \
+        --time 48:00:00 \
+        --cpus 64
+"""
+import os
+import argparse
+
+# ──────────────── argument parsing ─────────────────────────────────────────
+parser = argparse.ArgumentParser(
+    description="Split a long bash script by marker lines & generate SBATCH wrappers."
+)
+parser.add_argument("-i", "--input_file", required=True,  help="Original long script")
+parser.add_argument("-n", "--num_output_files", required=True, type=int,
+                    help="Number of chunks/scripts to create")
+parser.add_argument("-p", "--name_prefix", required=True,
+                    help="Prefix for the generated files")
+
+# optional SBATCH tuning
+parser.add_argument("--mem",  default="40G",      help="SBATCH --mem value")
+parser.add_argument("--time", default="24:00:00", help="SBATCH -t wall time")
+parser.add_argument("--cpus", default=48, type=int, help="SBATCH --cpus-per-task value")
+args = parser.parse_args()
+
+# ──────────────── SBATCH template ─────────────────────────────────────────
+SBATCH_TEMPLATE = (
     "#!/bin/bash\n"
     "#SBATCH -J {jobname}\n"
     "#SBATCH -o scripts/log_{jobname}.out\n"
-    "#SBATCH -t 24:00:00\n"
-    "#SBATCH --mem=40G\n"
+    "#SBATCH -t {time}\n"
+    "#SBATCH --mem={mem}\n"
     "#SBATCH --nodes=1\n"
     "#SBATCH --ntasks=1\n"
-    "#SBATCH --cpus-per-task=48\n"
+    "#SBATCH --cpus-per-task={cpus}\n"
     "#SBATCH --ntasks-per-node=1\n\n"
 )
 
-scripts_dir = "scripts"
-os.makedirs(scripts_dir, exist_ok=True)
+# directories
+SCRIPTS_DIR = "scripts"
+os.makedirs(SCRIPTS_DIR, exist_ok=True)
 
-def split_by_iteration_markers(input_file, num_output_files, name_prefix):
-    """
-    Reads 'input_file' line by line, grouping lines between occurrences of
-    either:
-      1) "# - Starting megasample creation" (if present), OR
-      2) "# --- Starting iteration" (fallback).
+MEGASAMPLE_MARKER = "# - Starting megasample"
+ITERATION_MARKER  = "# --- Starting iteration"
 
-    Distributes these groups across 'num_output_files' round-robin.
-    For each output index i:
-      - Writes a "command file": name_prefix_part_{i}.sh
-      - Writes a minimal SBATCH file: name_prefix_part_{i}.sbatch
+# ──────────────── main logic ──────────────────────────────────────────────
+def split_by_iteration_markers(input_file: str, n_out: int, prefix: str):
+    with open(input_file) as fh:
+        lines = fh.readlines()
 
-    Also tracks the chosen marker lines and "# Unique Sample" lines, inserting
-    echo statements for progress.
+    total_lines = len(lines)
+    total_megasample = sum(1 for l in lines if l.startswith(MEGASAMPLE_MARKER))
+    total_iteration  = sum(1 for l in lines if l.startswith(ITERATION_MARKER))
 
-    Finally, prints how many marker lines (either iteration or megasample) and
-    sample lines were found in total, plus distribution across the output files.
-    """
+    marker = (MEGASAMPLE_MARKER if total_megasample else ITERATION_MARKER)
+    print(f"Using marker '{marker}'")
 
-    # 0) First pass: detect if there's a "megasample" marker
-    with open(input_file, 'r') as fcheck:
-        all_lines = fcheck.readlines()
-
-    megasample_marker = "# - Starting megasample"
-    iteration_marker  = "# --- Starting iteration"
-
-    # Determine which marker to use
-    use_megasample_marker = any(line.startswith(megasample_marker) for line in all_lines)
-    if use_megasample_marker:
-        marker = megasample_marker
-        print(f"Using marker '{marker}' because lines start with '# - Starting megasample'")
-    else:
-        marker = iteration_marker
-        print(f"No lines start with '# - Starting megasample', using '{marker}' instead.")
-
-    # 1) Split lines into groups based on the chosen marker
-    groups = []
-    current_group = []
-
-    marker_count_global = 0
-    sample_count_global = 0
-
-    for line in all_lines:
-        if line.startswith(marker):
-            marker_count_global += 1
-            if current_group:
-                groups.append(current_group)
-            current_group = [line]
+    # group between markers
+    groups, curr, m_total, s_total = [], [], 0, 0
+    for l in lines:
+        if l.startswith(marker):
+            m_total += 1
+            if curr:
+                groups.append(curr)
+            curr = [l]
         else:
-            current_group.append(line)
+            curr.append(l)
+        if l.startswith("# Unique Sample"):
+            s_total += 1
+    if curr:
+        groups.append(curr)
 
-        if line.startswith("# Unique Sample"):
-            sample_count_global += 1
-
-    # Don't forget the last group if it's non-empty
-    if current_group:
-        groups.append(current_group)
-
-    # 2) Distribute groups among the output files (round-robin)
-    file_contents = [[] for _ in range(num_output_files)]
+    # round-robin distribution
+    chunks = [[] for _ in range(n_out)]
     for idx, grp in enumerate(groups):
-        file_index = idx % num_output_files
-        file_contents[file_index].extend(grp)
+        chunks[idx % n_out].extend(grp)
 
-    # 3) For each file, create command + SBATCH scripts
-    for i in range(num_output_files):
-        part_index = i + 1
+    # write output scripts & SBATCH wrappers
+    for idx, chunk in enumerate(chunks, start=1):
+        cmd = f"{SCRIPTS_DIR}/{prefix}_part_{idx}.sh"
+        sb  = f"{SCRIPTS_DIR}/{prefix}_part_{idx}.sbatch"
+        job = f"{prefix}_{idx}"
 
-        cmd_filename = f"{scripts_dir}/{name_prefix}_part_{part_index}.sh"
-        sbatch_filename = f"{scripts_dir}/{name_prefix}_part_{part_index}.sbatch"
-        jobname = f"{name_prefix}_{part_index}"
+        m_cnt = sum(1 for l in chunk if l.startswith(marker))
+        s_cnt = sum(1 for l in chunk if l.startswith("# Unique Sample"))
 
-        # Count marker & sample lines in this part
-        marker_count_file = 0
-        sample_count_file = 0
-        for line in file_contents[i]:
-            if line.startswith(marker):
-                marker_count_file += 1
-            if line.startswith("# Unique Sample"):
-                sample_count_file += 1
-
-        # Prepare the command file
-        with open(cmd_filename, 'w') as cmd_f:
-            # Optional header for summary in this part
-            cmd_f.write(
-                f"echo \"[{name_prefix}] Script {part_index}/{num_output_files}: "
-                f"{marker_count_file} marker(s) in this file of {marker_count_global} total; "
-                f"{sample_count_file} sample(s) in this file of {sample_count_global} total.\"\n\n"
+        with open(cmd, "w") as cf:
+            cf.write(
+                f"echo \"[{prefix}] Script {idx}/{n_out}: "
+                f"{m_cnt} markers of {m_total}; "
+                f"{s_cnt} samples of {s_total}.\"\n\n"
             )
+            s_idx = 0
+            for l in chunk:
+                if l.startswith("# Unique Sample"):
+                    s_idx += 1
+                    cf.write(f"echo \"Sample {s_idx}/{s_cnt} in part {idx}.\"\n")
+                cf.write(l)
 
-            # Insert an echo line before each "# Unique Sample"
-            sample_index_in_file = 0
-            for line in file_contents[i]:
-                if line.startswith("# Unique Sample"):
-                    sample_index_in_file += 1
-                    cmd_f.write(
-                        f"echo \"Now running sample {sample_index_in_file} / {sample_count_file} "
-                        f"in script {part_index}.\"\n"
-                    )
+        with open(sb, "w") as sf:
+            sf.write(SBATCH_TEMPLATE.format(
+                jobname=job, mem=args.mem, time=args.time, cpus=args.cpus
+            ))
+            sf.write(f"echo 'Launching {cmd} (part {idx})'\n")
+            sf.write(f"bash {cmd}\n")
 
-                cmd_f.write(line)
+        print(f"Created {cmd} & {sb} ({len(chunk)} lines)")
 
-        # Prepare the SBATCH file using the template
-        with open(sbatch_filename, 'w') as sb_f:
-            sb_f.write(sbatch_header_template.format(jobname=jobname))
-            sb_f.write(f"echo 'Launching {cmd_filename} in script {part_index}'\n")
-            sb_f.write(f"bash {cmd_filename}\n")
-
-        print(
-            f"Created {cmd_filename} (commands) and {sbatch_filename} (SBATCH). "
-            f"Lines in part={len(file_contents[i])} "
-            f"({marker_count_file} marker lines, {sample_count_file} samples)."
-        )
-
-    # 4) Print global summary
+    # detailed summary
     print("\n=== Global Summary ===")
-    print(f"Total marker lines ('{marker}') found in '{input_file}': {marker_count_global}")
-    print(f"Total sample lines ('# Unique Sample') found in '{input_file}': {sample_count_global}")
+    print(f"Total lines in '{input_file}': {total_lines}")
+    print(f"Megasample marker lines:       {total_megasample}")
+    print(f"Iteration marker lines:        {total_iteration}")
+    print(f"Processed marker lines ('{marker}'): {m_total}")
+    print(f"Total '# Unique Sample' lines: {s_total}\n")
 
-def main():
-    # Expect 3 arguments: input_file, num_output_files, name_prefix
-    if len(sys.argv) != 4:
-        print("Usage: python split_script_iteration_markers.py <input_file> <num_output_files> <name_prefix>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
-    num_output_files = int(sys.argv[2])
-    name_prefix = sys.argv[3]
-
-    split_by_iteration_markers(input_file, num_output_files, name_prefix)
-
+# ──────────────── entry point ─────────────────────────────────────────────
 if __name__ == "__main__":
-    main()
+    split_by_iteration_markers(args.input_file, args.num_output_files, args.name_prefix)
