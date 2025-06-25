@@ -1,5 +1,9 @@
 #Rename this for your benchmarking run
 output_name_prefix=test_benchmarking
+# Run specifications
+threads=48
+# Temp directory
+tmp_build=temp_conf
 
 # Genome locations
 target_genome_dir=/scratch/user/u.ed124096/Mh_benchmarking/test_benchmarking/test_on_target_genomes/
@@ -13,20 +17,23 @@ themisto_index=2025_themisto_index_no
 
 # Kraken database and read extraction arguments
 krakendb=/scratch/user/u.ed124096/nt_core_kraken_db
+
+# Benchmarking parameters
+# These are the default parameters we used, but we recommend testing with a smaller subset
+# You can reduce the number of kraken confidence values tested, or the num_iters, and num_GSV_list to reduce the number of simulated samples. 
+
+# Kraken flags
 kraken_confidence=[0,0.1,0.2,0.3,0.4,0.5]
-# Taxa id to filter
+## Taxa id to filter
 extract_reads_taxid=75985
-# Extra argument to filter reads classified as taxid and lower levels
+## Extra argument to filter reads classified as taxid and lower levels
 extract_reads_options=--include-children
 
 # Benchmarking metrics
-num_iters=2
+num_iters=100
 num_GSV_list=[0,1,3,5,7,9]
 num_reads_options=[50000,100000]
 
 segment_length=150
-num_genomes_per_GSV=2 # Eventually bump this up to at least 5
+num_genomes_per_GSV=5
 
-# Run specifications
-threads=48
-tmp_build=temp_conf

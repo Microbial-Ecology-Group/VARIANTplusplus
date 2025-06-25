@@ -76,6 +76,8 @@ Get a list of accessions for all genomes in the same family as your target genom
 # Step 3: Bechmarking 
 
 What you'll need:
+1. VARIANT++ github code
+    - This includes the benchmarking code and anaconda recipe to install dependencies
 1. ANI annotations with clusters from 2-30 (or more)
 2. Target genomes
 3. Off-target genomes
@@ -83,6 +85,8 @@ What you'll need:
 5. Kraken database
 
 ## 3.1 Preparing resources
+
+
 
 ### 3.1.1 Install VARIANT++ conda environment
 
@@ -117,6 +121,26 @@ echo 'export PATH="/path/to/your/wd/:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+Additionally, to make it easy to run the benchmarking scripts from anywhere on the server, we can add the absolute path to the "bin/Benchmarking_code" directory.
+
+If you just did the step above, you should still be in the "bin/" directory. We'll move into the "Benchmarking_code" directory and repeat the steps. 
+
+```
+# Navigate to directory from the VARIANT++ "bin/" dir
+cd Benchmarking_code/
+
+# Get path
+pwd
+
+# Add that directory to your $PATH variable
+# Replace "/path/to/your/wd/" with your path
+echo 'export PATH="/path/to/your/wd/:$PATH"' >> ~/.bashrc
+
+# Now run the bash.rc file
+source ~/.bashrc
+```
+
+**At this point, navigate to wherever you want to run the benchmarking. We can run everything from this location.**
 
 ### 3.1.2 Make themisto database
 
@@ -165,77 +189,58 @@ This will output three scripts. They'll have different names depending on what y
 - script_kraken_extract_split_test_benchmarking.sh
 - script_themisto_msweep_test_benchmarking.sh
 
+---
 
 ### 3.2.2 Run script to build simulated reads
 
-The scripts we just made are way too long to run at once, so we'll use the script `split_script_iteration_markers.py`. This will break up the processes evenly across any given number of scripts. 
+The scripts we just made are way too long to run at once, so we'll use the script `split_script_iteration_markers.py`. This will break up the processes evenly across any given number of scripts. It will make a ".sh" command file and a corresponding ".sbatch" file that references the previous ".sh" script. So, each subset of commands will have a bash script, sbatch script, and a log file with similar names.
 
-For each of the three scripts, we'll need to modify the `split_script_iteration_markers.py` script and change the parameters for the first variable at the top of the script, `sbatch_header_template`. For the first step, you can use something like this:
+For each of the three main scripts, we'll change the parameters we provide the script,`split_script_iteration_markers.py` , which will change how the resulting sbatch scripts are made. 
 
-```
-sbatch_header_template = (
-    "#!/bin/bash\n"
-    "#SBATCH -J {jobname}\n"
-    "#SBATCH -o scripts/log_{jobname}.out\n"
-    "#SBATCH -t 24:00:00\n"
-    "#SBATCH --mem=40G\n"
-    "#SBATCH --nodes=1\n"
-    "#SBATCH --ntasks=1\n"
-    "#SBATCH --cpus-per-task=48\n"
-    "#SBATCH --ntasks-per-node=1\n\n"
-)
-```
+The main parameters of importance is the time `--time` and the memory `--mem` for each script that is created and this will change based on what tools we are running, how many subsets of scripts we made, and how long it takes to run your genomes. 
 
-The main parameters of importance is the time `-t` and the memory `--mem` for each script that is created. 
-
-In this python command, we'll point to the first script, "script_build_reads_test_benchmarking.sh", then specify the number of scripts to make, and the prefix for the scripts that will be made. 
+In this python command, we'll point to the first script, "script_build_reads_test_benchmarking.sh", then specify the number of scripts to make, the prefix for the scripts that will be made. 
 
 ```
-python split_script_iteration_markers.py script_build_reads_test_benchmarking.sh 20 buildReads_byConf
+python split_script_iteration_markers.py --input_file script_build_reads_test_benchmarking.sh --num_output_files 20 --name_prefix buildReads_byConf --mem 30G --time 24:00:00 
 ```
 
 Read the output text, you might notice if you used too high a number of some scripts have 0 lines or "0 marker lines". This means that there weren't enough code chunks to split into that many scripts. These scripts are now in a new directory, `scripts/`. 
 
 If, for example, only 13 of the 20 scripts had commands then we can use the following command to submit those scripts using sbatch. make sure to change the prefix to the left of the word "part" to match the prefix you used above. 
 
+Make sure you have the conda environment activated.
+
 ```
 for i in {1..13}; do
   sbatch "scripts/buildReads_byConf_part_${i}.sbatch"
 done
 ```
+### Waiting for scripts to finish running.
 
-You'll now have to wait for those scripts to finish running. Remember to do a good testing run, so you have an idea of how long it will take per simulated. Maybe take chunks from one of the scripts and try running all the commands to see how long you'll need.
+You'll now have to wait for those scripts to finish running. Remember to do a good testing run, so you have an idea of how long it will take per simulated. Maybe take chunks from one of the scripts and try running all the commands to see how long you'll need. 
 
-Once everything is done running, you can consider erasing the temporary directory specified by the `tmp_build` paramater, in this case "temp_conf". This can end up taking a lot of space so keep an eye on your storage space. You can do this at the end of each step, just make sure everything completed succesfully by looking at the end of the logs in the `scripts/` directory.
+Once everything is done running, you can consider erasing the contents in the temporary directory specified by the `tmp_build` paramater, in this case "temp_conf". This can end up taking a lot of space so keep an eye on your storage space. Make sure you only delete the contents and not the directory itself. The next steps will also use that temporary directory. 
+
+You can do this at the end of each step, just make sure everything completed succesfully by looking at the end of the logs in the `scripts/` directory. 
 
 
 ### What if some of my scripts didn't completely finish?
 If you look at the logs and see that they were cutoff due to time, you should be able to identify the last sample that was succesfully run by that script and erase everything up to that set of commands. Then you can resubmit, but try to calculate how much time would actually be needed before re-submitting.
 
+---
+
 ### 3.2.3 Run script to run kraken and extract reads
 
 This next section requires alot more resources because we'll be using kraken2 and the core nt database. Loading that large database requires at least 250G of memory. We could add "--memory-mapping" as a kraken2 flag to reduce the required memory, but it ends up taking way longer, so better to just request the full amount. 
 
-We'll modify the `split_script_iteration_markers.py` script again, to update the sbatch header so that it includes the 250G in memory. Remember to change the time based on your testing.
+We'll modify the `split_script_iteration_markers.py` command again, to update the sbatch header so that it includes the 250G in memory. Remember to change the time based on your testing.
+
+
+We'll run the script to split up the next series of commands from the second script, `script_kraken_extract_split_test_benchmarking.sh`.
 
 ```
-sbatch_header_template = (
-    "#!/bin/bash\n"
-    "#SBATCH -J {jobname}\n"
-    "#SBATCH -o scripts/log_{jobname}.out\n"
-    "#SBATCH -t 24:00:00\n"
-    "#SBATCH --mem=250G\n"
-    "#SBATCH --nodes=1\n"
-    "#SBATCH --ntasks=1\n"
-    "#SBATCH --cpus-per-task=48\n"
-    "#SBATCH --ntasks-per-node=1\n\n"
-)
-```
-
-Then, we'll run the script to split up the next series of commands from the second script, `script_kraken_extract_split_test_benchmarking.sh`.
-
-```
-python split_script_iteration_markers.py script_kraken_extract_split_test_benchmarking.sh 20 kraken_byConf
+python split_script_iteration_markers.py --input_file script_kraken_extract_split_test_benchmarking.sh --num_output_files 20 --name_prefix kraken_byConf --mem 250G --time 12:00:00 
 ```
 
 Submit them as before, remembering to update the prefix. 
@@ -246,28 +251,16 @@ for i in {1..20}; do
 done
 ```
 
+--- 
+
+Remember to check your temporary directory in case you want to empty it, but make sure you don't delete the folder itself.
 
 ### 3.2.4 Run script to classify GSVs in simulated samples
 
-This final step will be similar, but requires much less memory. So update the `split_script_iteration_markers.py` again to look something like this:
+This final step will be similar, but requires much less memory. So update the command for `split_script_iteration_markers.py` again to look something like this, pointing to the last script, `script_themisto_msweep_test_benchmarking.sh`:
 
 ```
-sbatch_header_template = (
-    "#!/bin/bash\n"
-    "#SBATCH -J {jobname}\n"
-    "#SBATCH -o scripts/log_{jobname}.out\n"
-    "#SBATCH -t 24:00:00\n"
-    "#SBATCH --mem=10G\n"
-    "#SBATCH --nodes=1\n"
-    "#SBATCH --ntasks=1\n"
-    "#SBATCH --cpus-per-task=48\n"
-    "#SBATCH --ntasks-per-node=1\n\n"
-)
-```
-Then, we'll run the script to split up the next series of commands from the third script, `script_themisto_msweep_test_benchmarking.sh`.
-
-```
-python split_script_iteration_markers.py script_themisto_msweep_test_benchmarking.sh 20 classify_byConf
+python split_script_iteration_markers.py --input_file script_themisto_msweep_test_benchmarking.sh --num_output_files 20 --name_prefix classify_byConf --mem 10G --time 12:00:00 
 ```
 
 Submit them as before, remembering to update the prefix. 
