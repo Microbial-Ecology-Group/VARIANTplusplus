@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, gzip, glob, os, sys
+import argparse, gzip, glob, os, sys, re
 from io import StringIO
 from collections import defaultdict
 import pandas as pd
@@ -13,24 +13,24 @@ Slim parser for mSWEEP abundance files.
 * Counts reads in each FASTQ and uses that number as the denominator when
   converting relative-abundance to absolute counts.
 * Applies one of **six** filter modes
-     rel_abund | rel_abund_combined | count | count_rel_abund | sub_count | sub_count_rel_abund | rel_abund_by_psv
+     rel_abund | rel_abund_combined | count | count_rel_abund | sub_count | sub_count_rel_abund | rel_abund_by_GSV
 * Produces
   ─ <out>_summary.tsv       – one row per file **plus** one “combined” row per sample
-      • found_psv_groups      – {taxon: rel_abund, …} before filtering
-      • filtered_psv_groups   – {taxon: abs_count, …} after filtering
+      • found_GSV_groups      – {taxon: rel_abund, …} before filtering
+      • filtered_GSV_groups   – {taxon: abs_count, …} after filtering
   ─ <out>_count_matrix.tsv  – taxa × samples (combined only) absolute-count matrix
 """
 
 
 # ────────────────────────────────────────────────────────────────────────
-# PSV-specific relative-abundance thresholds
+# GSV-specific relative-abundance thresholds
 # (edit these numbers whenever you need new cut-offs)
 # ────────────────────────────────────────────────────────────────────────
-#psv_rel_map = {1: 0.00107, 2: 0.000777, 3: 0.000953, 4: 0.00293,
+#GSV_rel_map = {1: 0.00107, 2: 0.000777, 3: 0.000953, 4: 0.00293,
 #               5: 0.00145, 6: 0.000600, 7: 0.000598, 8: 0.00140} # Conf 0.1, 99quantile
-#psv_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007} # Conf 0.1, 99 quantile
+#GSV_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007} # Conf 0.1, 99 quantile
 
-psv_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
+GSV_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
 
 
 
@@ -66,7 +66,7 @@ def load_msweep(path):
     return n_reads, n_aligned, df
 
 
-def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, psv_rel_map=None):
+def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, GSV_rel_map=None):
     """
     Return a filtered (possibly modified) copy of *df*.
     `df` must already contain columns: rel_abund, abs_count
@@ -88,11 +88,11 @@ def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, psv_rel_map=None):
         df["abs_count"] -= denom_reads * rel_thr
         keep = df.abs_count > 0
 
-    # ── NEW: rel_abund_by_psv ──────────────────────────────────────────
-    elif mode == "rel_abund_by_psv":
-        # subtract PSV-specific floor for every row, keep if > 0
+    # ── NEW: rel_abund_by_GSV ──────────────────────────────────────────
+    elif mode == "rel_abund_by_GSV":
+        # subtract GSV-specific floor for every row, keep if > 0
         def adjusted(row):
-            floor_rel = psv_rel_map.get(int(row.taxon), rel_thr)   # fallback → global
+            floor_rel = GSV_rel_map.get(int(row.taxon), rel_thr)   # fallback → global
             return max(0, row.abs_count - denom_reads * floor_rel)
 
         df["abs_count"] = df.apply(adjusted, axis=1)
@@ -112,7 +112,7 @@ def parse(msweep_dir, reads_dir, out_prefix,
     denominator_choice = (
         "NA"                 if mode in {"rel_abund", "rel_abund_combined"} else
         "num_aligned"        if mode == "count_rel_abund" else
-        "nonhost_reads"      if mode in {"sub_count_rel_abund", "rel_abund_by_psv"} else
+        "nonhost_reads"      if mode in {"sub_count_rel_abund", "rel_abund_by_GSV"} else
         "constant"
     )
 
@@ -121,17 +121,22 @@ def parse(msweep_dir, reads_dir, out_prefix,
         sys.exit(f"No mSWEEP files in {msweep_dir}")
 
     # per-file FASTQ read counts – only required for *_rel_abund* count modes
-    need_reads     = mode in {"count_rel_abund", "sub_count_rel_abund", "rel_abund_by_psv"}
+    need_reads     = mode in {"count_rel_abund", "sub_count_rel_abund", "rel_abund_by_GSV"}
     fastq_lookup   = {}
     if need_reads:
         for fq in glob.glob(os.path.join(reads_dir, "*.non.host.fastq*")):
             base = os.path.basename(fq)
+            #print(base)
             try:
-                sample, rtype = base.replace(".non.host.fastq.gz", "").rsplit(".", 1)
+                sample, rtype = re.match(r"(.+?)_(merged|unmerged)$",
+                                     base.replace(".non.host.fastq.gz", "")
+                                    ).groups()
+                #print(sample, rtype)
                 fastq_lookup[(sample, rtype)] = fq
             except ValueError:
                 print(f"[WARN] unexpected FASTQ skipped: {base}")
 
+    # print(fastq_lookup) show dictionary of reads
     summary_rows, count_matrix = [], defaultdict(dict)
     combined_bucket            = {}
 
@@ -158,7 +163,7 @@ def parse(msweep_dir, reads_dir, out_prefix,
 
         n_reads_hdr, n_aligned_hdr, df = load_msweep(mfile)
         df["abs_count"] = df.rel_abund * n_aligned_hdr
-        found_psvs_full = dict(zip(df.taxon, df.rel_abund.round(6)))
+        found_GSVs_full = dict(zip(df.taxon, df.rel_abund.round(6)))
 
         # per-file filtering (only for classic rel_abund)
         if mode == "rel_abund":
@@ -179,8 +184,8 @@ def parse(msweep_dir, reads_dir, out_prefix,
             "found_taxa_n"        : len(df),
             "kept_taxa_n"         : kept_n,
             "filter_mode"         : mode,
-            "found_psv_groups"    : found_psvs_full,
-            "filtered_psv_groups" : kept_dict,
+            "found_GSV_groups"    : found_GSVs_full,
+            "filtered_GSV_groups" : kept_dict,
             "denominator_choice"  : denominator_choice
         })
 
@@ -218,13 +223,13 @@ def parse(msweep_dir, reads_dir, out_prefix,
                                   hdr_aligned_sum)
         elif mode in {"count", "count_rel_abund",
                       "sub_count", "sub_count_rel_abund",
-                      "rel_abund_by_psv"}:
+                      "rel_abund_by_GSV"}:
             if   mode == "count_rel_abund":
                 denom = hdr_aligned_sum
-            else:                               # sub*  OR  rel_abund_by_psv
+            else:                               # sub*  OR  rel_abund_by_GSV
                 denom = denom_reads
             df_sum = apply_filter(df_sum, mode, rel_thr, count_thr,
-                                  denom, psv_rel_map)
+                                  denom, GSV_rel_map)
 
         comb_filtered = dict(zip(df_sum.taxon, df_sum.abs_count.round(2)))
 
@@ -237,8 +242,8 @@ def parse(msweep_dir, reads_dir, out_prefix,
             "found_taxa_n"        : len(df_sum),
             "kept_taxa_n"         : len(comb_filtered),
             "filter_mode"         : mode,
-            "found_psv_groups"    : {},
-            "filtered_psv_groups" : comb_filtered,
+            "found_GSV_groups"    : {},
+            "filtered_GSV_groups" : comb_filtered,
             "denominator_choice"  : denominator_choice
         })
 
@@ -267,11 +272,11 @@ if __name__ == "__main__":
     ap.add_argument("--msweep_dir", required=True)
     ap.add_argument("--reads_dir",  required=True)
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--filter-mode", default="rel_abund_by_psv",
+    ap.add_argument("--filter-mode", default="rel_abund_by_GSV",
         choices=["rel_abund", "rel_abund_combined",
                  "count", "count_rel_abund",
                  "sub_count", "sub_count_rel_abund",
-                 "rel_abund_by_psv"])
+                 "rel_abund_by_GSV"])
     ap.add_argument("--rel-thr",   type=float, default=0.01)
     ap.add_argument("--count-thr", type=float, default=10)
     args = ap.parse_args()
