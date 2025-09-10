@@ -349,9 +349,9 @@ def main():
                     cl_out.write(f"pigz --processes {threads} {extracted_path}\n")
 
                     cl_out.write(
-                        f"python3 {bin_dir}/split_extracted_reads_by_conf.py --input_fasta {extracted_path}.gz "
+                        f"python3 {bin_dir}/split_extracted_mergedreads_and_unpaired.py --input_fasta {extracted_path}.gz "
                         f"--output_merged_dir {merged_extracted_reads_dir} "
-                        f"--output_unmerged_dir {split_reads_dir} --label conf{conf_str} \n"
+                        f"--output_unmerged_dir {split_reads_dir} \n"
                     )
 
     print("Building:", script_run_themisto_msweep)

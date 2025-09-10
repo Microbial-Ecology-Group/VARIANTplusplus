@@ -4,6 +4,8 @@ output_name_prefix=test_benchmarking
 threads=48
 # Temp directory
 tmp_build=temp_conf
+# Path to directory with all scripts
+bin_dir=/scratch/user/brennenohunt/Salmonella_Project/cluster_analysis/VARIANTplusplus/bin/database_creation/Benchmarking_code
 
 # Genome locations
 target_genome_dir=/scratch/user/u.ed124096/Mh_benchmarking/test_benchmarking/test_on_target_genomes/

@@ -50,9 +50,9 @@ tar -xzvf k2_core_nt_20241228.tar.gz -C k2_core_nt_20241228/
 
 ```
 #!/bin/bash
-#SBATCH -J GSV++ -o GSV_1_log.out -t 48:00:00 --mem=5G --nodes=1 --ntasks=1 --cpus-per-task=1
+#SBATCH -J GSV++ -o full_GSV_pipeline_log.out -t 48:00:00 --mem=5G --nodes=1 --ntasks=1 --cpus-per-task=1
 
-nextflow run main_VARIANT++.nf -profile local_slurm --pipeline GSV_1 -with-report report_GSV_1_slurm.html --output BRDnoBRD_GSV_result -resume
+nextflow run main_VARIANT++.nf -profile local_slurm --pipeline full_GSV_pipeline -with-report report_full_GSV_pipeline.html --output BRDnoBRD_GSV_result -resume
 ```
 
 * The various parts of this pipeline can require alot of temporary storage, so I recommend adding `-w /path/to/work_dir` so that you can place the working directory somewhere other than your working directory.
@@ -78,7 +78,7 @@ Optional
 Example command:
 
 ```
- nextflow run main_VARIANT++.nf --pipeline GSV_1 --output GSV_analysis --reads "data/raw/*_R{1,2}.fastq.gz" 
+ nextflow run main_VARIANT++.nf --pipeline GSV_1 --output GSV_analysis --reads "data/raw/*_R{1,2}.fastq.gz" -profile local_slurm
 ```
 
 So for example, you would run that command in a sbatch script like this:
@@ -87,7 +87,7 @@ So for example, you would run that command in a sbatch script like this:
 #!/bin/bash
 #SBATCH -J GSV++ -o GSV_1_log.out -t 48:00:00 --mem=5G --nodes=1 --ntasks=1 --cpus-per-task=1
 
-nextflow run main_VARIANT++.nf --pipeline GSV_1 --output GSV_analysis --reads "data/raw/*_R{1,2}.fastq.gz" 
+nextflow run main_VARIANT++.nf --pipeline GSV_1 --output GSV_analysis --reads "data/raw/*_R{1,2}.fastq.gz" -profile local_slurm
 ```
 Submit it as normal, this will make a single process that then creates and submits individual jobs as needed. Keep an eye on the log file and "squeue" until it ends.  
 
@@ -165,12 +165,12 @@ nextflow run main_VARIANT++.nf --pipeline GSV_4 --output GSV_analysis --merged_r
 
 Parameters that have to change:
 * `--pipeline` ==> `--pipeline GSV_5`
-* `--merged_reads`  ==> `--merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_{merged,unmerged}.dedup.fastq.gz'`
+* `--merged_reads`  ==> `--merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_extracted_{merged,unmerged}.fastq.gz'`
 
 
 Example command:
 ```
-nextflow run main_VARIANT++.nf --pipeline GSV_5 --output GSV_analysis --merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_Mh_extracted_{merged,unmerged}.fastq.gz' -profile local_slurm
+nextflow run main_VARIANT++.nf --pipeline GSV_5 --output GSV_analysis --merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_extracted_{merged,unmerged}.fastq.gz' -profile local_slurm
 ```
 
 Updated sbatch script to submit:

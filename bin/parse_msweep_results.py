@@ -88,7 +88,7 @@ def apply_filter(df, mode, rel_thr, cnt_thr, denom_reads, GSV_rel_map=None):
         df["abs_count"] -= denom_reads * rel_thr
         keep = df.abs_count > 0
 
-    # ── NEW: rel_abund_by_GSV ──────────────────────────────────────────
+    # ── rel_abund_by_GSV ──────────────────────────────────────────
     elif mode == "rel_abund_by_GSV":
         # subtract GSV-specific floor for every row, keep if > 0
         def adjusted(row):
@@ -128,7 +128,7 @@ def parse(msweep_dir, reads_dir, out_prefix,
             base = os.path.basename(fq)
             #print(base)
             try:
-                sample, rtype = re.match(r"(.+?)_(merged|unmerged)$",
+                sample, rtype = re.match(r"(.+?).(merged|unmerged)$",
                                      base.replace(".non.host.fastq.gz", "")
                                     ).groups()
                 #print(sample, rtype)

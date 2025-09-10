@@ -4,6 +4,7 @@ params.readlen = 150
 threads = params.threads
 
 kraken_confidence = params.kraken_confidence
+kraken_options = params.kraken_options
 
 extract_reads_taxid = params.extract_reads_taxid
 extract_reads_options_single = params.extract_reads_options_single
@@ -12,6 +13,8 @@ extract_reads_options_double = params.extract_reads_options_double
 
 krakendb_inter = params.krakendb_inter
 confirmation_db = params.confirmation_db
+
+kraken_options = params.kraken_options
 
 process dlkraken {
     tag { }
@@ -149,9 +152,17 @@ process runkraken_extract {
 process runkraken_merged_extract {
 
     tag   { sample_id }
-    label {
-        params.kraken_options.join(' ').contains('--memory-mapping') ? 'small_memory_long_time' : 'large_long'
-    }
+    // robust to null | String | List
+    // make sure to test this functionality
+    label (
+        (
+          (params.kraken_options instanceof List)
+            ? params.kraken_options.join(' ')
+            : (params.kraken_options ?: '')
+        ).contains('--memory-mapping')
+           ? 'small_memory_long_time'
+           : 'large_long'
+    )
 
     publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',
         saveAs: { fn ->
