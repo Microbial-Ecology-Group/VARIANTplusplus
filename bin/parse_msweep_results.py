@@ -30,6 +30,7 @@ Slim parser for mSWEEP abundance files.
 #               5: 0.00145, 6: 0.000600, 7: 0.000598, 8: 0.00140} # Conf 0.1, 99quantile
 #GSV_rel_map = {1: 0.000639 , 2: 0.0000215,3:0.000522 ,4:0.000588 ,5:0.000204 ,6:0.000294 ,7:0.0000616 ,8:0.0007} # Conf 0.1, 99 quantile
 
+# These are original GSV names, still need to switch GSV 1 with GSV 2
 GSV_rel_map = {1: 0.00138 , 2: 0.0000653,3:0.000743 ,4:0.000739 ,5:0.000427 ,6:0.00104 ,7:0.000283 ,8:0.000765} # Conf 0.0, 99 quantile
 
 

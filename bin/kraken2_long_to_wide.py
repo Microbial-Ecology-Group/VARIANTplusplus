@@ -4,9 +4,9 @@ import sys
 import argparse
 import numpy as np
 
-__author__ = 'Steven Lakin'
-__maintainer__ = 'lakinsm'
-__email__ = 'Steven.Lakin@colostate.edu'
+__authors__ = 'Steven Lakin & Enrique Doster'
+__maintainer__ = 'Enrique Doster'
+__email__ = 'enriquedoster@tamu.edu'
 
 
 taxa_levels = {
@@ -53,12 +53,12 @@ def dict_to_matrix(D):
             if taxon not in unique_nodes:
                 unique_nodes.append(taxon)
     nrow = len(unique_nodes)
-    return_values = np.zeros((nrow, ncol), dtype=np.float)
+    return_values = np.zeros((nrow, ncol), dtype=float)
     for j, (sample, tdict) in enumerate(D.items()):
         samples.append(sample)
         for i, taxon in enumerate(unique_nodes):
             if taxon in tdict:
-                return_values[i, j] = np.float(tdict[taxon])
+                return_values[i, j] = float(tdict[taxon])
     return return_values, unique_nodes, samples
 
 
@@ -76,6 +76,11 @@ def kraken2_load_analytic_data(file_name_list):
                 if not line:
                     continue
                 entries = line.split('\t')
+                if len(entries) >= 6:
+                    node_level = (entries[3] or '').strip()
+                    node_name  = entries[5].strip()
+                    if not node_level and (node_name.lower() == 'root' or entries[4].strip() == '1'):
+                        entries[3] = 'R'
                 node_count = int(entries[2])
                 node_level = entries[3]
                 node_name = entries[5].strip()
@@ -114,8 +119,8 @@ def kraken2_load_analytic_data(file_name_list):
 
 def output_kraken2_analytic_data(outfile, M, m_names, n_names, unclassifieds):
     with open(outfile, 'w') as out, \
-            open('kraken_unclassifieds.csv', 'w') as u_out:
-        out.write(','.join(n_names) + '\n')
+            open(f"unclassifieds_{outfile}", 'w') as u_out:
+        out.write(','.join(['taxa'] + n_names) + '\n')
         for i, row in enumerate(M):
             out.write('\"{}\",'.format(
                 m_names[i].replace(',', '')
