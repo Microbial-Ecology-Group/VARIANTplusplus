@@ -3,6 +3,7 @@ import os
 import sys
 import gzip
 import argparse
+import re
 
 """
 split_extracted_mergedreads_and_unpaired.py
@@ -75,7 +76,7 @@ def strip_file_prefix(filename):
         prefix = prefix[:-6]
     return prefix
 
-def split_fasta(in_file, unmerged_dir):
+def split_fasta(in_file, unmerged_dir, conf_suffix):
     """
     For FASTA => old style: each sample => {unmerged_dir}/{sample_id}.fasta.gz
     We'll treat all as "unmerged." Summaries => forward=0, reverse=0, merged=0, total=someCount, etc.
@@ -88,7 +89,7 @@ def split_fasta(in_file, unmerged_dir):
 
     def get_handle(sample_id):
         if sample_id not in handles:
-            outpath = os.path.join(unmerged_dir, f"{sample_id}.fasta.gz")
+            outpath = os.path.join(unmerged_dir, f"{sample_id}{conf_suffix}.fasta.gz")
             fh = gzip.open(outpath, "wt")
             handles[sample_id] = fh
             sample_counts[sample_id] = 0
@@ -120,7 +121,7 @@ def split_fasta(in_file, unmerged_dir):
 
     return sample_counts  # sample_id => count
 
-def split_fastq_merged_unmerged(in_file, merged_dir, unmerged_dir):
+def split_fastq_merged_unmerged(in_file, merged_dir, unmerged_dir, conf_suffix):
     """
     FASTQ => We parse each read's 4-line chunk. parted => parted[0], parted[1], parted[2].
       parted[1] => sample_id
@@ -204,8 +205,8 @@ def split_fastq_merged_unmerged(in_file, merged_dir, unmerged_dir):
             sid = "unknown"
         sid = sid.replace('.fastq.gz','')
         print(sid)
-        merged_out  = os.path.join(merged_dir,   f"{sid}_merged.fastq.gz")
-        unmerged_out= os.path.join(unmerged_dir, f"{sid}_unmerged.fastq.gz")
+        merged_out  = os.path.join(merged_dir,   f"{sid}{conf_suffix}_merged.fastq.gz")
+        unmerged_out= os.path.join(unmerged_dir, f"{sid}{conf_suffix}_unmerged.fastq.gz")
         fh_m = gzip.open(merged_out,   "wt")
         fh_u = gzip.open(unmerged_out, "wt")
 
@@ -230,6 +231,15 @@ def main():
     parser.add_argument("--output_unmerged_dir", required=True,
                         help="Directory for storing unmerged reads per sample.")
     args = parser.parse_args()
+    # Extract conf label from input filename if present
+    conf_match = re.search(r'_conf([\d\.p]+)_extracted', args.input_fasta)
+    if conf_match:
+        conf_label = f"conf{conf_match.group(1)}"
+        conf_suffix = f"_{conf_label}"
+        print(f"[INFO] Detected confidence label: {conf_label}", file=sys.stderr)
+    else:
+        conf_suffix = ""
+        print(f"[WARN] No confidence label detected in filename", file=sys.stderr)
 
     # figure out prefix from input file
     prefix = strip_file_prefix(args.input_fasta)
@@ -246,7 +256,7 @@ def main():
 
     if ftype=="FASTA":
         print(f"[INFO] Detected FASTA => each sample => unmerged (like original).", file=sys.stderr)
-        sample_counts = split_fasta(args.input_fasta, args.output_unmerged_dir)
+        sample_counts = split_fasta(args.input_fasta, args.output_unmerged_dir, conf_suffix)
         # We produce one row per sample => sample_id, total_reads, merged_count=0, forward_count=0, reverse_count=0 or do we treat them all as unmerged?
         # We'll treat them as all unmerged => merged=0
         for sid, countVal in sample_counts.items():
@@ -261,7 +271,7 @@ def main():
 
     else:
         print(f"[INFO] Detected FASTQ => merged vs unmerged logic, by parted[2] endswith /1 or /2", file=sys.stderr)
-        sample_data = split_fastq_merged_unmerged(args.input_fasta, args.output_merged_dir, args.output_unmerged_dir)
+        sample_data = split_fastq_merged_unmerged(args.input_fasta, args.output_merged_dir, args.output_unmerged_dir, conf_suffix)
         # sample_data[sample_id] => total, merged_count, forward_count, reverse_count
         for sid, data in sample_data.items():
             row = [
