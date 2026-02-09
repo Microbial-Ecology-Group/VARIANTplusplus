@@ -346,7 +346,7 @@ def main():
                         f"-s {final_merged_path} -o {extracted_path} --fastq-output\n"
                     )
 
-                    cl_out.write(f"pigz --processes {threads} {extracted_path}\n")
+                    cl_out.write(f"pigz -f --processes {threads} {extracted_path}\n")
 
                     cl_out.write(
                         f"python3 {bin_dir}/split_extracted_mergedreads_and_unpaired.py --input_fasta {extracted_path}.gz "
