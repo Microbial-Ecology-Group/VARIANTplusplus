@@ -38,4 +38,5 @@ num_reads_options=[250000,500000,1000000,2000000]
 
 segment_length=150
 num_genomes_per_GSV=5
+offtarget_iter_multiplier=10
 

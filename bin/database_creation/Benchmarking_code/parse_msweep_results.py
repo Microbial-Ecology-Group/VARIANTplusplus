@@ -162,6 +162,7 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
             "num_aligned"   : n_aligned,
             "total_input"   : total_input,
             "k_col"         : k_col,
+            "numGSVs"       : numGSVs,
             "expected_GSVs" : exp_GSVs
         }
 
@@ -238,7 +239,7 @@ def parse_msweep_results(input_dirs, output_file, filter_mode,
             "num_reads"          : (m["num_reads"]  if m else 0) + (u["num_reads"]  if u else 0),
             "num_aligned"        : total_aligned,
             "total_input_reads"  : total_input,
-            "numGSVs"            : sub["merged"]["k_col"] if m else u["k_col"],
+            "numGSVs"            : m["numGSVs"] if m else u["numGSVs"],
             "k_col"              : m["k_col"] if m else u["k_col"],
             "expected_GSVs"      : m["expected_GSVs"] if m else u["expected_GSVs"],
             "filtered_GSV_groups": comb_dic,

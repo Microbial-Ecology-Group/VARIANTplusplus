@@ -280,9 +280,34 @@ done
 ## 4.1 Parse msweep results without a filter
 
 
+
+```
+
+python3 parse_msweep_results.py \
+    --input_dirs test_low_iters_results/ \
+    --output_file no_filter_output \
+    --filter-mode rel_abund \
+    --rel-abund-threshold -1
+
+python parse_msweep_results.py --input_dirs test_low_iters_results/ --output_file no_filter_results --filter-mode rel_abund --rel-abund-threshold -1
+
+```
+
+
 ## 4.2 Analyze off target results and false positive rate in R
 
 ### 4.2.1 Pick filtration rates for each GSV
+
+Update `parse_msweep_results.py` so that "GSV_rel_map" matches the number of GSVs you are picking and their simulated false positive rates. 
+
+```
+/scratch/group/pinnell_lab/kayla.hazlett/Fuso_Benchmarking/F_Necrophorum_Benchmarking/
+
+
+python parse_msweep_results.py --input_dirs test_low_iters_results/ --output_file results_test --filter-mode rel_abund_by_GSV
+```
+
+
 
 ## 4.3 Evaluate classification performance
 
