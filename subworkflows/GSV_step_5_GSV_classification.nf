@@ -15,8 +15,6 @@ workflow GSV_5_WF {
         merged_reads_ch   
 
     main:
-
-
           // now each item is exactly: ( sid, Path-to-merged, Path-to-unmerged )
         MergedPseudoalignFastqFiles( merged_reads_ch , params.themisto_index )
         MergedRunMSweep(MergedPseudoalignFastqFiles.out.pseudoalignedFastqFiles , params.clustering_file )

@@ -92,7 +92,7 @@ include { GSV_2_WF } from './subworkflows/GSV_step_2_dedup.nf'
 include { GSV_3_WF } from './subworkflows/GSV_step_3_host_rm.nf'
 include { GSV_4_WF } from './subworkflows/GSV_step_4_kraken_extraction.nf'
 include { GSV_5_WF } from './subworkflows/GSV_step_5_GSV_classification.nf'
-
+include { GSV_5_MGEMS_WF } from './subworkflows/GSV_step_5_mGEMS.nf'
 
 
 workflow {
@@ -261,6 +261,27 @@ workflow {
           .set { themisto_input_ch }
           
         GSV_5_WF( themisto_input_ch)
+    }  
+    else if(params.pipeline == "GSV_5_mGEMS") {
+                
+        /*  Build ( sid , mergedFile , unmergedFile )  -------------------------- */
+        Channel
+          .fromFilePairs( params.merged_reads, glob: true )
+          .ifEmpty { error "No FASTQ files match: ${params.merged_reads}" }
+          .map { sample_id, files ->
+            //
+            // files will be e.g.
+            //   [ Path(…/S1_test_merged.dedup.fastq.gz),
+            //     Path(…/S1_test_unmerged.dedup.fastq.gz) ]
+            //
+            def merged   = files.find { it.name.contains('merged')   }
+            def unmerged = files.find { it.name.contains('unmerged') }
+            assert merged && unmerged : "Sample $sample_id missing one of merged/unmerged"
+            tuple( sample_id, merged, unmerged )
+          }
+          .set { themisto_input_ch }
+          
+        GSV_5_MGEMS_WF( themisto_input_ch)
     }       
     else if(params.pipeline == "merge") {
         FLASH_MERGE_WF( fastq_files)
