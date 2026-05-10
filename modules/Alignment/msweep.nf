@@ -77,44 +77,29 @@ process MergedRunMSweep {
         path("${sample_id}.unmerged.msweep_probs.csv"),      optional: true, emit: msweep_unmerged_probs
 
     script:
-    // Use optimized parameters if provided, otherwise use defaults
-    def min_hits = params.msweep_min_hits ?: 1  // Keep default conservative for short reads
-    def alpha_prior = params.msweep_alpha_prior ?: 1.0
-    def zero_inflation = params.msweep_zero_inflation ?: 0.01
-    def q_param = params.msweep_q ?: 0.65
-    def e_param = params.msweep_e ?: 0.01
+    // Only use --write-probs if enabled, everything else uses mSWEEP defaults
     def write_probs = params.msweep_write_probs ? "--write-probs" : ""
 
     """
-    # merged reads with optimized parameters ────────────────────
+    # merged reads with mSWEEP defaults ─────────────────────────
     if [ -f "${pseudo_merged}" ] && [ -s "${pseudo_merged}" ]; then
         mSWEEP \
             --themisto ${pseudo_merged} \
             -i ${clustering_file} \
             -t ${task.cpus} \
             --themisto-mode intersection \
-            --min-hits ${min_hits} \
-            # --alphas ${alpha_prior} \
-            --zero-inflation ${zero_inflation} \
-            -q ${q_param} \
-            -e ${e_param} \
             ${write_probs} \
             -o ${sample_id}.merged.msweep \
-            --verbose || true        # ignore any mSWEEP failure
+            --verbose || true
     fi
 
-    # unmerged reads with optimized parameters ──────────────────
+    # unmerged reads with mSWEEP defaults ──────────────────────
     if [ -f "${pseudo_unmerged}" ] && [ -s "${pseudo_unmerged}" ]; then
         mSWEEP \
             --themisto ${pseudo_unmerged} \
             -i ${clustering_file} \
             -t ${task.cpus} \
             --themisto-mode intersection \
-            --min-hits ${min_hits} \
-            # --alphas ${alpha_prior} \
-            --zero-inflation ${zero_inflation} \
-            -q ${q_param} \
-            -e ${e_param} \
             ${write_probs} \
             -o ${sample_id}.unmerged.msweep \
             --verbose || true
