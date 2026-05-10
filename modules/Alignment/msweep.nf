@@ -94,7 +94,7 @@ process MergedRunMSweep {
             -t ${task.cpus} \
             --themisto-mode intersection \
             --min-hits ${min_hits} \
-            --alphas ${alpha_prior} \
+            # --alphas ${alpha_prior} \
             --zero-inflation ${zero_inflation} \
             -q ${q_param} \
             -e ${e_param} \
@@ -111,7 +111,7 @@ process MergedRunMSweep {
             -t ${task.cpus} \
             --themisto-mode intersection \
             --min-hits ${min_hits} \
-            --alphas ${alpha_prior} \
+            # --alphas ${alpha_prior} \
             --zero-inflation ${zero_inflation} \
             -q ${q_param} \
             -e ${e_param} \
