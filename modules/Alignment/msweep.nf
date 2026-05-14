@@ -62,50 +62,73 @@ process MergedPseudoalignFastqFiles {
 process MergedRunMSweep {
 
     tag   { sample_id }
-    label "small_memory_short_time"
+    label "medium"
 
-    publishDir "${params.output}/mSWEEP_results", mode: 'copy'
+    publishDir "${params.output}/mSWEEP_results", mode: 'copy',
+        saveAs: { filename ->
+            if (filename.contains('_abundances.')) "Abundance_files/${filename}"
+            else if (filename.contains('_probs.')) "Probability_files/${filename}"  
+            else filename
+        }
 
     input:
-        tuple val(sample_id), path(pseudo_merged), path(pseudo_unmerged)
-        path  clustering_file
+        tuple val(sample_id), path(merged_fastq), path(unmerged_fastq)
+        path clustering_file
 
     output:
-        path("${sample_id}.merged.msweep_abundances.txt"),   optional: true, emit: msweep_merged
-        path("${sample_id}.merged.msweep_probs.csv"),        optional: true, emit: msweep_merged_probs
-        path("${sample_id}.unmerged.msweep_abundances.txt"), optional: true, emit: msweep_unmerged  
-        path("${sample_id}.unmerged.msweep_probs.csv"),      optional: true, emit: msweep_unmerged_probs
+        // FIXED: Changed .csv to .tsv to match actual mSWEEP output
+        tuple val(sample_id), path("${sample_id}.merged.msweep_abundances.txt"), 
+                              path("${sample_id}.merged.msweep_probs.tsv"), emit: msweep_merged
+        tuple val(sample_id), path("${sample_id}.unmerged.msweep_abundances.txt"), 
+                              path("${sample_id}.unmerged.msweep_probs.tsv"), emit: msweep_unmerged
 
     script:
-    // Only use --write-probs if enabled, everything else uses mSWEEP defaults
-    def write_probs = params.msweep_write_probs ? "--write-probs" : ""
+    def min_hits = params.msweep_min_hits ?: 2
+    def alpha_prior = params.msweep_alpha_prior ?: 1.0
+    def write_probs = params.mgems_enabled ? "--write-probs" : ""
 
     """
-    # merged reads with mSWEEP defaults ─────────────────────────
-    if [ -f "${pseudo_merged}" ] && [ -s "${pseudo_merged}" ]; then
+    echo "=== mSWEEP Analysis for ${sample_id} ===" 
+
+    # ─── Process merged reads ──────────────────────────────────────────
+    if [ -f "${merged_fastq}" ] && [ -s "${merged_fastq}" ]; then
+        echo "Running mSWEEP on merged reads..."
+        
         mSWEEP \
-            --themisto ${pseudo_merged} \
-            -i ${clustering_file} \
-            -t ${task.cpus} \
-            --themisto-mode intersection \
+            --themisto-alns ${merged_fastq} \
+            --clusters ${clustering_file} \
+            --min-hits ${min_hits} \
+            --alpha-prior ${alpha_prior} \
             ${write_probs} \
-            -o ${sample_id}.merged.msweep \
-            --verbose || true
+            --abundances-out ${sample_id}.merged.msweep_abundances.txt \
+            --probs-out ${sample_id}.merged.msweep_probs.tsv
+    else
+        # Create empty files if input is missing
+        touch ${sample_id}.merged.msweep_abundances.txt
+        touch ${sample_id}.merged.msweep_probs.tsv
     fi
 
-    # unmerged reads with mSWEEP defaults ──────────────────────
-    if [ -f "${pseudo_unmerged}" ] && [ -s "${pseudo_unmerged}" ]; then
+    # ─── Process unmerged reads ────────────────────────────────────────
+    if [ -f "${unmerged_fastq}" ] && [ -s "${unmerged_fastq}" ]; then
+        echo "Running mSWEEP on unmerged reads..."
+        
         mSWEEP \
-            --themisto ${pseudo_unmerged} \
-            -i ${clustering_file} \
-            -t ${task.cpus} \
-            --themisto-mode intersection \
+            --themisto-alns ${unmerged_fastq} \
+            --clusters ${clustering_file} \
+            --min-hits ${min_hits} \
+            --alpha-prior ${alpha_prior} \
             ${write_probs} \
-            -o ${sample_id}.unmerged.msweep \
-            --verbose || true
+            --abundances-out ${sample_id}.unmerged.msweep_abundances.txt \
+            --probs-out ${sample_id}.unmerged.msweep_probs.tsv
+    else
+        # Create empty files if input is missing
+        touch ${sample_id}.unmerged.msweep_abundances.txt
+        touch ${sample_id}.unmerged.msweep_probs.tsv
     fi
     """
 }
+
+
 
 // Optional new mGEMS process for read binning (add this if you want the full mGEMS workflow)
 process MergedRunMGEMS {
