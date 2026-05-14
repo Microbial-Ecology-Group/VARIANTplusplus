@@ -1,7 +1,6 @@
 /*───────────────────────────────────────────────────────────────────────────
- *  SIMPLIFIED GSV_5_MGEMS_WF - Clean defaults with working mGEMS
+ *  FIXED GSV_5_MGEMS_WF - Proper file passing for mGEMS
  *───────────────────────────────────────────────────────────────────────────*/
-
 include { MergedPseudoalignFastqFiles ; MergedRunMSweep
          ; MergedParsemSweepResults ; MergedRunMGEMS                     } from '../modules/Alignment/msweep'
 
@@ -19,22 +18,27 @@ workflow GSV_5_MGEMS_WF {
             params.clustering_file 
         )
         
-        // Step 3: mGEMS read binning (simplified approach)
+        // Step 3: mGEMS read binning (FIXED: proper file passing)
         if (params.run_mgems == true) {
             
-            // Simple approach: combine original reads with pseudoaligned files
-            // and create placeholder mSWEEP result paths for mGEMS to find
+            // Properly combine inputs with actual mSWEEP outputs
             mgems_input_ch = merged_reads_ch
                 .join(MergedPseudoalignFastqFiles.out.pseudoalignedFastqFiles, by: 0)
-                .map { sample_id, merged_fq, unmerged_fq, pseudo_merged, pseudo_unmerged ->
-                    // Create tuple with all inputs mGEMS needs
+                .join(MergedRunMSweep.out.msweep_merged, by: 0)
+                .join(MergedRunMSweep.out.msweep_unmerged, by: 0)
+                .map { sample_id, merged_fq, unmerged_fq, pseudo_merged, pseudo_unmerged, 
+                       msweep_merged_tuple, msweep_unmerged_tuple ->
+                    
+                    // Extract actual abundance and probability files from mSWEEP output
+                    def (merged_abundances, merged_probs) = msweep_merged_tuple
+                    def (unmerged_abundances, unmerged_probs) = msweep_unmerged_tuple
+                    
+                    // Create proper tuple for mGEMS
                     [sample_id, 
                      merged_fq, unmerged_fq,                    // Original FASTQ files
-                     pseudo_merged, pseudo_unmerged,            // Pseudoaligned files
-                     file("placeholder_abundances_merged"),     // Placeholders - mGEMS will find actual files
-                     file("placeholder_probs_merged"), 
-                     file("placeholder_abundances_unmerged"), 
-                     file("placeholder_probs_unmerged")]
+                     pseudo_merged, pseudo_unmerged,            // Pseudoaligned files  
+                     merged_abundances, merged_probs,           // ACTUAL mSWEEP merged outputs
+                     unmerged_abundances, unmerged_probs]       // ACTUAL mSWEEP unmerged outputs
                 }
             
             MergedRunMGEMS(
