@@ -97,6 +97,7 @@ process MergedRunMSweep {
         mSWEEP \
             --themisto-alns ${merged_fastq} \
             --clusters ${clustering_file} \
+            -i ${themisto_index}/2025_themisto_index_no \
             --min-hits ${min_hits} \
             --alpha-prior ${alpha_prior} \
             ${write_probs} \
@@ -115,6 +116,7 @@ process MergedRunMSweep {
         mSWEEP \
             --themisto-alns ${unmerged_fastq} \
             --clusters ${clustering_file} \
+            -i ${themisto_index}/2025_themisto_index_no \
             --min-hits ${min_hits} \
             --alpha-prior ${alpha_prior} \
             ${write_probs} \
@@ -127,6 +129,8 @@ process MergedRunMSweep {
     fi
     """
 }
+
+
 
 
 
