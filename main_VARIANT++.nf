@@ -9,15 +9,26 @@ nextflow.enable.dsl=2
  * given `params.foo` specify on the run command line `--foo some_value`.
 */
 
-log.info """\
+// =============================================================================
+//  Helper functions
+//  NOTE: All executable logic lives in functions or inside the entry workflow
+//  block below. Top-level statements (variable assignments, Channel pipelines,
+//  if/else chains) cannot be mixed with top-level declarations (process,
+//  workflow, include) under Nextflow's strict syntax parser. Writing it this
+//  way is compatible with both the classic (v1) and strict (v2) parsers.
+// =============================================================================
+
+def printPipelineBanner() {
+    log.info """\
  VARIANT + +    N F   P I P E L I N E
  ===================================
  pipeline     : ${params.pipeline}
  output       : ${params.output}
  """
+}
 
-
-def helpMessage = """\
+def helpMessage() {
+    return """\
     VARIANT++ Nextflow Pipeline Help
     =============================
 
@@ -53,20 +64,22 @@ def helpMessage = """\
     Please be aware that adding deduplicated counts will significantly increase run time and temp file storage requirements.
 
     """
+}
 
-Channel
-    .fromFilePairs( params.reads , size: (params.reads =~ /\{/) ? 2 : 1)
-    .ifEmpty { error "Cannot find any reads matching: ${params.reads}" }
-    .map { id, files -> 
-        def modified_baseName = id.split('\\.')[0]
-        tuple(modified_baseName, files)
-    }
-    .set {fastq_files}
-
-// Load null pipeline
-params.pipeline = null
-
-// Load main pipeline workflows
+// =============================================================================
+//  Includes (declarations -- always allowed at top level)
+//
+//  NOTE: The original script also contained this top-level statement here:
+//      params.pipeline = null
+//  This has been REMOVED. Top-level statements execute when the script loads,
+//  which happens after Nextflow binds any --pipeline value from the command
+//  line into params.pipeline. An unconditional `params.pipeline = null` here
+//  would silently overwrite the CLI value on every single run, meaning the
+//  --pipeline flag would never actually take effect and the script would
+//  always fall through to the help/demo branch. If this was intentional,
+//  re-add it inside the workflow block below -- but it's almost certainly
+//  leftover/dead code.
+// =============================================================================
 
 // Load subworkflows
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
@@ -93,13 +106,36 @@ include { GSV_3_WF } from './subworkflows/GSV_step_3_host_rm.nf'
 include { GSV_4_WF } from './subworkflows/GSV_step_4_kraken_extraction.nf'
 include { GSV_5_WF } from './subworkflows/GSV_step_5_GSV_classification.nf'
 include { GSV_5_MGEMS_WF } from './subworkflows/GSV_step_5_mGEMS.nf'
+// NOTE: FASTQ_QIIME2_WF is called in the "qiime2" branch below but was never
+// included anywhere in the original script -- this branch would have failed
+// with an "unknown variable/process" error if ever exercised. Uncomment and
+// fix the path once you confirm where this subworkflow lives (it may be the
+// same fastq_16S_qiime2.nf module used by AMR++).
+// include { FASTQ_QIIME2_WF } from './subworkflows/fastq_16S_qiime2.nf'
 
+
+// =============================================================================
+//  Entry workflow
+//  All executable statements (Channel pipelines, if/else routing, onComplete)
+//  live inside this block.
+// =============================================================================
 
 workflow {
+
+    printPipelineBanner()
+
+    Channel
+        .fromFilePairs( params.reads , size: (params.reads =~ /\{/) ? 2 : 1)
+        .ifEmpty { error "Cannot find any reads matching: ${params.reads}" }
+        .map { id, files -> 
+            def modified_baseName = id.split('\\.')[0]
+            tuple(modified_baseName, files)
+        }
+        .set { fastq_files }
+
     if (params.pipeline == null || params.pipeline == "help") {
 
-        println helpMessage
-
+        println helpMessage()
 
         log.info """\
         ===================================
@@ -312,17 +348,22 @@ workflow {
             println "To test the pipeline, use the \"demo\" pipeline or omit the pipeline flag:"
             println ""
             println "ERROR ################################################################"
-            println helpMessage
+            println helpMessage()
             println "Exiting ..."
             System.exit(0)  
     }
-}
 
-
-workflow.onComplete {
-    println "Pipeline completed!"
-    println "Started at  $workflow.start"
-    println "Finished at $workflow.complete"
-    println "Time elapsed: $workflow.duration"
-    println "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
+    // =========================================================================
+    //                         ON COMPLETE HANDLER
+    //  Moved inside the entry workflow -- a bare `workflow.onComplete {}` at
+    //  the top level is itself a statement and is rejected by the strict
+    //  parser for the same reason as everything else above.
+    // =========================================================================
+    workflow.onComplete {
+        println "Pipeline completed!"
+        println "Started at  $workflow.start"
+        println "Finished at $workflow.complete"
+        println "Time elapsed: $workflow.duration"
+        println "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
+    }
 }
