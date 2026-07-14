@@ -333,7 +333,7 @@ process runbracken {
 process kronadb {
     label "microbiome"
     output:
-        file("krona_db/taxonomy.tab") optional true into krona_db_ch // is this a value ch?
+        path("krona_db/taxonomy.tab"), optional: true // is this a value ch?
 
     when: 
         !params.skip_krona
@@ -348,12 +348,12 @@ process kronafromkraken {
     publishDir params.outdir, mode: 'copy'
     label "microbiome"
     input:
-        file(x) from kraken2krona_ch.collect()
+        path(x)
         //file(y) from kaiju2krona_ch.collect()
-        file("krona_db/taxonomy.tab") from krona_db_ch
+        path("krona_db/taxonomy.tab")
     
     output:
-        file("*_taxonomy_krona.html")
+        path("*_taxonomy_krona.html")
 
     when:
         !params.skip_krona
