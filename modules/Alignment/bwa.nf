@@ -340,8 +340,10 @@ process MergedRunMSweep {
         path  clustering_file
 
     output:
-        path("${sample_id}.merged.msweep_abundances.txt"),  optional: true, emit: msweep_merged
-        path("${sample_id}.unmerged.msweep_abundances.txt"), optional: true, emit: msweep_unmerged
+        tuple path("${sample_id}.merged.msweep_abundances.txt"),
+              path("${sample_id}.merged.msweep_probs.tsv"), optional: true, emit: msweep_merged
+        tuple path("${sample_id}.unmerged.msweep_abundances.txt"),
+              path("${sample_id}.unmerged.msweep_probs.tsv"), optional: true, emit: msweep_unmerged
 
 
     script:
@@ -353,6 +355,7 @@ process MergedRunMSweep {
         -t ${task.cpus} \
         --themisto-mode intersection \
         -o ${sample_id}.merged.msweep \
+        --write-probs \
         --verbose || true        # ignore any mSWEEP failure
 
     # un-merged reads ---------------------------------------------------
@@ -362,6 +365,7 @@ process MergedRunMSweep {
         -t ${task.cpus} \
         --themisto-mode intersection \
         -o ${sample_id}.unmerged.msweep \
+        --write-probs \
         --verbose || true
     """
 }
@@ -434,7 +438,7 @@ process MergedParsemSweepResults {
 
     python $baseDir/bin/parse_msweep_results.py \
         --msweep_dir . \
-        --reads_dir  $baseDir/${params.output}/HostRemoval/NonHostFastq/ \
+        --reads_dir  ${params.output}/HostRemoval/NonHostFastq/ \
         -o mSweep_results \
         --filter-mode rel_abund_by_GSV
     """

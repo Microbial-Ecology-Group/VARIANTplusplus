@@ -21,3 +21,6 @@ dependencies:
   - scikit-learn
   - ete3
   - krakentools
+  - cd-hit
+  - mSWEEP
+  - mGEMS
