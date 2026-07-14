@@ -1,7 +1,6 @@
 // Load modules
 include { index ; bwa_align } from '../modules/Alignment/bwa'
 
-import java.nio.file.Paths
 
 workflow FASTQ_ALIGN_WF {
     take: 
@@ -15,7 +14,7 @@ workflow FASTQ_ALIGN_WF {
             amr_index_files = index.out
         } else {
             amr_index_files = Channel
-                .fromPath(Paths.get(params.amr_index))
+                .fromPath(java.nio.file.Paths.get(params.amr_index))
                 .map { file(it.toString()) }
                 .filter { file(it).exists() }
                 .toList()
