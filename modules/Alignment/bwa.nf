@@ -44,7 +44,7 @@ process bwa_align {
         tuple val(pair_id), path("${pair_id}_alignment_dedup.bam"), emit: bwa_dedup_bam, optional: true
 
     script:
-    if( deduped == "N")
+    if( params.deduped == "N")
         """
         \${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
         \${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
@@ -52,7 +52,7 @@ process bwa_align {
         \${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
         rm ${pair_id}_alignment.bam
         """
-    else if( deduped == "Y")
+    else if( params.deduped == "Y")
         """
         \${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
         \${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
@@ -68,7 +68,7 @@ process bwa_align {
         rm ${pair_id}_alignment_dedup.sam
         """
     else
-        error "Invalid deduplication flag --deduped: ${deduped}. Please use --deduped Y for deduplicated counts, or avoid using this flag altogether to skip this error."
+        error "Invalid deduplication flag --deduped: ${params.deduped}. Please use --deduped Y for deduplicated counts, or avoid using this flag altogether to skip this error."
 }
 
 
@@ -95,6 +95,13 @@ process align_reads {
     tag "${sampleName}_${genomeName}"
     scratch true
 
+    publishDir "${params.output}/Alignment_results", pattern: "*_alignment_sorted.dedup.bam", mode: 'copy'
+    publishDir "${params.output}/Coverage_results", pattern: "*_depth.txt", mode: 'copy'
+    publishDir "${params.output}/Coverage_results", pattern: "*_coverage.txt", mode: 'copy'
+    publishDir "${params.output}/Coverage_results", pattern: "*_processed_idxstats.txt", mode: 'copy'
+    publishDir "${params.output}/Coverage_results", pattern: "*_overall_average.txt", mode: 'copy'
+
+
     input:
         tuple val(sampleName), path(reads), val(genomeName), path(genome), path(indexFiles)
         
@@ -105,12 +112,6 @@ process align_reads {
               path("${sampleName}_${genomeName}_coverage.txt"), 
               path("${sampleName}_${genomeName}_processed_idxstats.txt"), 
               path("${sampleName}_${genomeName}_overall_average.txt")
-
-    publishDir "${params.output}/Alignment_results", pattern: "*_alignment_sorted.dedup.bam", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_depth.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_coverage.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_processed_idxstats.txt", mode: 'copy'
-    publishDir "${params.output}/Coverage_results", pattern: "*_overall_average.txt", mode: 'copy'
 
     script:
     """
@@ -450,7 +451,7 @@ process bwa_rm_contaminant_fq {
     """
 
     \${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${task.cpus} \
-            | ${SAMTOOLS} sort -@ ${task.cpus} -o ${pair_id}.host.sorted.bam
+            | \${SAMTOOLS} sort -@ ${task.cpus} -o ${pair_id}.host.sorted.bam
 
 
     \${SAMTOOLS} index   ${pair_id}.host.sorted.bam

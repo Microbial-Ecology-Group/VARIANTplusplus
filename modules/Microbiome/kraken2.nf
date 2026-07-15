@@ -124,7 +124,7 @@ process runkraken_extract {
 
     script:
     """
-    \${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
+    \${KRAKEN2} --db ${krakendb} --confidence ${params.kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
     extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${params.extract_reads_taxid} ${params.extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
 
@@ -286,68 +286,5 @@ process extractedKrakenResults {
     \${PYTHON3} $baseDir/bin/kraken2_strains_long_to_wide_wsummary.py -i ${confirmation_kraken_reports} -o strain_classification_kraken_matrix.csv
     
 
-    """
-}
-
-
-
-
-process runbracken {
-    label "microbiome"
-    
-    input:
-       tuple val(sample_id), path(krakenout)
-       path(krakendb)
-
-    script:
-    """
-    bracken \
-        -d ${krakendb} \
-        -r ${params.readlen} \
-        -i ${krakenout} \
-        -l ${params.taxlevel} \
-        -o ${sample_id}_bracken.tsv
-
-    bracken \
-        -d ${krakendb} \
-        -r ${params.readlen}\
-        -i ${krakenout_filtered} \
-        -l ${params.taxlevel} \
-        -o ${sample_id}_bracken_filtered.tsv
-        """
-}
-
-process kronadb {
-    label "microbiome"
-    output:
-        file("krona_db/taxonomy.tab") optional true into krona_db_ch // is this a value ch?
-
-    when: 
-        !params.skip_krona
-        
-    script:
-    """
-    ktUpdateTaxonomy.sh krona_db
-    """
-}
-
-process kronafromkraken {
-    publishDir params.outdir, mode: 'copy'
-    label "microbiome"
-    input:
-        file(x) from kraken2krona_ch.collect()
-        //file(y) from kaiju2krona_ch.collect()
-        file("krona_db/taxonomy.tab") from krona_db_ch
-    
-    output:
-        file("*_taxonomy_krona.html")
-
-    when:
-        !params.skip_krona
-    
-    script:
-    """
-    mkdir krona
-    ktImportTaxonomy -o kraken2_taxonomy_krona.html -tax krona_db $x
     """
 }

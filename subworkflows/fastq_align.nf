@@ -1,5 +1,6 @@
 // Load modules
 include { index ; bwa_align } from '../modules/Alignment/bwa'
+include { build_dependencies } from '../modules/Resistome/resistome'
 
 workflow FASTQ_ALIGN_WF {
     take: 

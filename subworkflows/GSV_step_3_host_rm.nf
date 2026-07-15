@@ -19,14 +19,17 @@ workflow GSV_3_WF {
 
     main:
     /* 1 ─ build / load BWA index -------------------------------------- */
-    def reference_index_ch =
-        params.host_index
-        ? Channel.fromPath( params.host_index , glob:true )
+    def reference_index_ch
+    if( params.host_index ) {
+        reference_index_ch = Channel.fromPath( params.host_index, glob: true )
                  .ifEmpty { error "No files match --host_index '${params.host_index}'" }
                  .toList()
-                 .map { it.sort() }               // bundle 6 index files
-        : { index( hostfasta ); index.out }()     // call in a closure
-
+                 .map { files -> files.sort() }
+    }
+    else {
+        index( hostfasta )
+        reference_index_ch = index.out
+    }
     /* 2 ─ host-removal -------------------------------------------------- */
     Mergedbwa_rm_contaminant_fq( reference_index_ch , merged_reads_ch )
     

@@ -1,7 +1,7 @@
 /*───────────────────────────────────────────────────────────────────────────
  *  LOAD THE MODULES NEEDED _AFTER_ DEDUPLICATION
  *───────────────────────────────────────────────────────────────────────────*/
-include { SeqkitReadCounts  ; MergedDeduplicateReadsSeqkit          } from '../modules/QC/dedup'
+include { SeqkitReadCounts  ; MergedDeduplicateReadsBBMap          } from '../modules/QC/dedup'
 
 
 /*───────────────────────────────────────────────────────────────────────────
@@ -14,13 +14,13 @@ workflow GSV_2_WF {
 
     main:
         /* Deduplicate reads ---- */ 
-        MergedDeduplicateReadsSeqkit( merged_reads_ch )
+        MergedDeduplicateReadsBBMap( merged_reads_ch )
         
         /* Summarize counts ---- */ 
         
         /* grab only the file paths (not the sample IDs) */
-        def dedup_merged_paths   = MergedDeduplicateReadsSeqkit.out.dedup_merged  .map { sid, f -> f }
-        def dedup_unmerged_paths = MergedDeduplicateReadsSeqkit.out.dedup_unmerged.map { sid, f -> f }
+        def dedup_merged_paths   = MergedDeduplicateReadsBBMap.out.dedup_merged  .map { sid, f -> f }
+        def dedup_unmerged_paths = MergedDeduplicateReadsBBMap.out.dedup_unmerged.map { sid, f -> f }
 
         /* 3 ─ make one channel that waits for ALL paths ----------------- */
         def dedup_all_fastqs_ch = dedup_merged_paths
@@ -31,8 +31,8 @@ workflow GSV_2_WF {
         SeqkitReadCounts(dedup_all_fastqs_ch, "Deduped")
 
     emit:
-        dedup_merged   = MergedDeduplicateReadsSeqkit.out.dedup_merged
-        dedup_unmerged = MergedDeduplicateReadsSeqkit.out.dedup_unmerged
+        dedup_merged   = MergedDeduplicateReadsBBMap.out.dedup_merged
+        dedup_unmerged = MergedDeduplicateReadsBBMap.out.dedup_unmerged
 
 
 }

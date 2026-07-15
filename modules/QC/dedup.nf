@@ -96,29 +96,31 @@ process MergedDeduplicateReadsBBMap {
     output:
         tuple val(sample_id), path("${sample_id}_merged.dedup.fastq.gz"),   emit: dedup_merged
         tuple val(sample_id), path("${sample_id}_unmerged.dedup.fastq.gz"), emit: dedup_unmerged
-        path("${sample_id}.dedupe.stats.log"),                              emit: dedupe_stats
+        path("${sample_id}.dedupe_clumpify.stats.log"),                              emit: dedupe_stats
 
     script:
-    def xmx = task.memory.toMega() * 0.9 as Integer
+    def jvm_mem = task.memory ? (task.memory.toGiga() * 0.75).intValue() 
+                         : (params.clumpify_mem_gb ?: 8)
     """
-# ── deduplicate UNMERGED file ────────────────────────────────────────
-    dedupe.sh -Xmx${xmx}m \
-          in=${unmerged_fq} \
-          out=${sample_id}_unmerged.dedup.fastq.gz \
-          threads=$task.cpus \
-    > ${sample_id}_unmerged.dedupe.log 2>&1
+    # Merged reads: SE-like, deduplicate independently
+    clumpify.sh \
+        -Xmx${jvm_mem}g \
+        threads=${task.cpus} \
+        in=${merged_fq} \
+        out=${sample_id}_merged.dedup.fastq.gz \
+        dedupe=t \
+        dupesubs=0 \
+        >  ${sample_id}.dedupe_clumpify.stats.log 2>&1
 
-# ── deduplicate MERGED file ──────────────────────────────────────────
-    dedupe.sh -Xmx${xmx}m \
-          in=${merged_fq} \
-          out=${sample_id}_merged.dedup.fastq.gz \
-          threads=$task.cpus \
-         > ${sample_id}_merged.dedupe.log 2>&1
-
-    # ── merge the per-file logs into one stats file ─────────────────────
-    cat ${sample_id}_merged.dedupe.log ${sample_id}_unmerged.dedupe.log \
-        >  ${sample_id}.dedupe.stats.log
-    rm  ${sample_id}_merged.dedupe.log  ${sample_id}_unmerged.dedupe.log
+    # Unmerged reads: also SE-like, deduplicate independently
+    clumpify.sh \
+        -Xmx${jvm_mem}g \
+        threads=${task.cpus} \
+        in=${unmerged_fq} \
+        out=${sample_id}_unmerged.dedup.fastq.gz \
+        dedupe=t \
+        dupesubs=0 \
+        >> ${sample_id}.dedupe_clumpify.stats.log 2>&1
     """
 }
 

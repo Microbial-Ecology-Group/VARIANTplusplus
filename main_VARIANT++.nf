@@ -70,7 +70,6 @@ def helpMessage() {
 // Load subworkflows
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
 include { FASTQ_TRIM_WF } from './subworkflows/fastq_QC_trimming.nf'
-include { FASTQ_ALIGN_WF } from './subworkflows/fastq_align.nf'
 include { FASTQ_ALIGN_TO_ALL_WF } from './subworkflows/fastq_align_all_to_all.nf'
 include { FASTQ_ONLY_ALIGN_TO_ALL_WF } from './subworkflows/fastq_only_align_all_to_all.nf'
 include { FASTQ_RM_HOST_WF } from './subworkflows/fastq_host_removal.nf' 
@@ -156,10 +155,6 @@ workflow {
 
         FASTQ_RM_HOST_WF(params.host, fastq_files )
     } 
-    else if(params.pipeline == "align") {
-
-        FASTQ_ALIGN_WF( fastq_files, params.amr)
-    }
     else if(params.pipeline == "align_to_all") {
 
         FASTQ_ALIGN_TO_ALL_WF( fastq_files, params.amr)

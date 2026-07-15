@@ -29,7 +29,7 @@ process MergedPseudoalignFastqFiles {
         -q ${merged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
         --temp-dir tmp -t ${task.cpus} \
-        ${params.threshold_param} \
+        ${threshold_param} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_merged.fastq || true
 
@@ -38,7 +38,7 @@ process MergedPseudoalignFastqFiles {
         -q ${unmerged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
         --temp-dir tmp -t ${task.cpus} \
-        ${params.threshold_param} \
+        ${threshold_param} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_unmerged.fastq || true
 
@@ -85,7 +85,7 @@ process MergedRunMSweep {
         mSWEEP \
             --themisto-alns ${merged_fastq} \
             --clusters ${clustering_file} \
-            -i ${themisto_index}/2025_themisto_index_no \
+            -i ${params.themisto_index}/2025_themisto_index_no \
             --min-hits ${params.min_hits} \
             --alpha-prior ${params.alpha_prior} \
             ${params.write_probs} \
@@ -104,7 +104,7 @@ process MergedRunMSweep {
         mSWEEP \
             --themisto-alns ${unmerged_fastq} \
             --clusters ${clustering_file} \
-            -i ${themisto_index}/2025_themisto_index_no \
+            -i ${params.themisto_index}/2025_themisto_index_no \
             --min-hits ${params.min_hits} \
             --alpha-prior ${params.alpha_prior} \
             ${params.write_probs} \

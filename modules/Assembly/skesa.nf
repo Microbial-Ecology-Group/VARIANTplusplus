@@ -19,6 +19,7 @@ process run_skesa_reads {
     output:
         tuple val(pair_id), path("${pair_id}.skesa.fa"), emit: skesa_contigs
 
+    script:
     """
     skesa --reads ${reads[0]},${reads[1]} --cores ${task.cpus} --memory ${params.mem_skesa} > ${pair_id}.skesa.fa
 
