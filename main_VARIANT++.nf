@@ -66,20 +66,6 @@ def helpMessage() {
     """
 }
 
-// =============================================================================
-//  Includes (declarations -- always allowed at top level)
-//
-//  NOTE: The original script also contained this top-level statement here:
-//      params.pipeline = null
-//  This has been REMOVED. Top-level statements execute when the script loads,
-//  which happens after Nextflow binds any --pipeline value from the command
-//  line into params.pipeline. An unconditional `params.pipeline = null` here
-//  would silently overwrite the CLI value on every single run, meaning the
-//  --pipeline flag would never actually take effect and the script would
-//  always fall through to the help/demo branch. If this was intentional,
-//  re-add it inside the workflow block below -- but it's almost certainly
-//  leftover/dead code.
-// =============================================================================
 
 // Load subworkflows
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
@@ -106,12 +92,7 @@ include { GSV_3_WF } from './subworkflows/GSV_step_3_host_rm.nf'
 include { GSV_4_WF } from './subworkflows/GSV_step_4_kraken_extraction.nf'
 include { GSV_5_WF } from './subworkflows/GSV_step_5_GSV_classification.nf'
 include { GSV_5_MGEMS_WF } from './subworkflows/GSV_step_5_mGEMS.nf'
-// NOTE: FASTQ_QIIME2_WF is called in the "qiime2" branch below but was never
-// included anywhere in the original script -- this branch would have failed
-// with an "unknown variable/process" error if ever exercised. Uncomment and
-// fix the path once you confirm where this subworkflow lives (it may be the
-// same fastq_16S_qiime2.nf module used by AMR++).
-// include { FASTQ_QIIME2_WF } from './subworkflows/fastq_16S_qiime2.nf'
+
 
 
 // =============================================================================
@@ -328,29 +309,20 @@ workflow {
     else if(params.pipeline == "msweep") {
         FASTQ_MSWEEP_WF( fastq_files )
     }
-    else if(params.pipeline == "qiime2") {
-        Channel
-            .fromFilePairs( params.reads, flat: true )
-            .ifEmpty { exit 1, "Read pair files could not be found: ${params.reads}" }
-            .map { name, forward, reverse -> [ forward.drop(forward.findLastIndexOf{"/"})[0], forward, reverse ] } //extract file name
-            .map { name, forward, reverse -> [ name.toString().take(name.toString().indexOf("_")), forward, reverse ] } //extract sample name
-            .map { name, forward, reverse -> [ name +","+ forward + ",forward\n" + name +","+ reverse +",reverse" ] } //prepare basic synthax
-            .flatten()
-            .collectFile(name: 'manifest.txt', newLine: true, storeDir: "${params.output}/demux", seed: "sample-id,absolute-filepath,direction")
-            .set { ch_manifest }
-        
-        FASTQ_QIIME2_WF( ch_manifest , params.dada2_db)
-    }
     else {
-            println "ERROR ################################################################"
-            println "Please choose a pipeline!!!" 
-            println ""
-            println "To test the pipeline, use the \"demo\" pipeline or omit the pipeline flag:"
-            println ""
-            println "ERROR ################################################################"
-            println helpMessage()
-            println "Exiting ..."
-            System.exit(0)  
+        log.error """
+    ===============================================================================
+                                   ERROR
+    ===============================================================================
+    Unknown pipeline: '${params.pipeline}'
+    
+    Please specify a valid pipeline using --pipeline <name>
+    
+    Run with --pipeline help to see all available options.
+    ===============================================================================
+        """
+        println helpMessage()
+        System.exit(1)  
     }
 
     // =========================================================================
@@ -359,11 +331,19 @@ workflow {
     //  the top level is itself a statement and is rejected by the strict
     //  parser for the same reason as everything else above.
     // =========================================================================
-    workflow.onComplete {
-        println "Pipeline completed!"
-        println "Started at  $workflow.start"
-        println "Finished at $workflow.complete"
-        println "Time elapsed: $workflow.duration"
-        println "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
+    workflow.onComplete = {
+        log.info """
+    ===============================================================================
+                            Pipeline Complete
+    ===============================================================================
+    Pipeline        : ${params.pipeline}
+    Started at      : ${workflow.start}
+    Finished at     : ${workflow.complete}
+    Duration        : ${workflow.duration}
+    Success         : ${workflow.success}
+    Work directory  : ${workflow.workDir}
+    Output directory: ${params.output}
+    ===============================================================================
+    """
     }
 }

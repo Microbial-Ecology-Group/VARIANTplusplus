@@ -1,4 +1,4 @@
-include {adapter_error} from "$baseDir/modules/nf-functions.nf"
+include {adapter_error} from '$baseDir/modules/nf-functions.nf'
 
 if( params.adapters ) {
     adapters = file(params.adapters)
@@ -33,7 +33,8 @@ process runqc {
         tuple val(sample_id), path("${sample_id}*P.fastq.gz"), emit: paired_fastq
         tuple val(sample_id), path("${sample_id}*U.fastq.gz"), emit: unpaired_fastq
         path("${sample_id}.trimmomatic.stats.log"), emit: trimmomatic_stats
-
+    
+    script:
     """
      ${TRIMMOMATIC} \
       PE \
@@ -68,6 +69,7 @@ process QCstats {
     output:
         path("trimmomatic.stats"), emit: combo_trim_stats
 
+    script:
     """
     ${PYTHON3} $baseDir/bin/trimmomatic_stats.py -i ${stats} -o trimmomatic.stats
     """

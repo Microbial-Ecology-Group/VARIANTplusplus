@@ -20,6 +20,7 @@ process Qiime2Import {
     output:
         path("demux.qza"), emit: demux
 
+    script:
     """
     ${QIIME} tools import \
       --type 'SampleData[PairedEndSequencesWithQuality]' \
@@ -45,7 +46,7 @@ process Qiime2Dada2 {
     output:
         path("dada-table.qza"), emit: dada_table
         path("rep-seqs.qza"), emit: rep_seqs
-
+    script:
     """
     ${QIIME} dada2 denoise-paired --i-demultiplexed-seqs ${demux} --o-table dada-table.qza --o-representative-sequences rep-seqs.qza --p-trim-left-f ${p_trim_left_f} --p-trim-left-r ${p_trim_left_r} --p-trunc-len-f ${p_trunc_len_f} --p-trunc-len-r ${p_trunc_len_r} --p-n-threads ${threads} --verbose --o-denoising-stats denoise_stats 
 
@@ -70,6 +71,7 @@ process Qiime2Classify {
     output:
         path("taxonomy.qza"), emit: taxonomy
 
+    script: 
     """
     ${QIIME} feature-classifier classify-sklearn --i-classifier ${database} --i-reads ${rep_seqs} --o-classification taxonomy.qza
 
@@ -94,6 +96,7 @@ process Qiime2Filter {
         path("filtered_table.qza"), emit: filtered_table
         path("filtered_rep-seqs.qza"), emit: filtered_seqs
 
+    script:
     """
     ${QIIME} taxa filter-table --i-table ${dada_table} --i-taxonomy ${taxonomy} --p-exclude mitochondria,chloroplast --o-filtered-table filtered_table.qza 
 
@@ -116,7 +119,8 @@ process Qiime2Tree {
 
     output:
         path("rooted-tree.qza"), emit: rooted_tree
-        
+
+    script:        
     """
     ${QIIME} alignment mafft --i-sequences ${filtered_seqs} --o-alignment aligned-rep-seqs.qza 
     
@@ -148,6 +152,7 @@ process Qiime2Export {
         path("tree.nwk"), emit: tree_nwk
         path("dna-sequences.fasta"), emit: dna_seqs
 
+    script:
     """
     ${QIIME} tools export --input-path filtered_rep-seqs.qza --output-path .
     ${QIIME} tools export --input-path taxonomy.qza --output-path . 

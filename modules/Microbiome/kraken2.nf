@@ -28,6 +28,7 @@ process dlkraken {
     output:
         path("k2_standard_08gb_20250402/")
 
+    script:
     """
     wget https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20250402.tar.gz
     # make a clean target directory
@@ -58,12 +59,12 @@ process runkraken {
        path(krakendb)
 
 
-   output:
+    output:
       tuple val(sample_id), path("${sample_id}.kraken.raw"), emit: kraken_raw
       path("${sample_id}.kraken.report"), emit: kraken_report
 
-
-     """
+    script:
+    """
      ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
     """
@@ -97,7 +98,8 @@ process runkraken_double_extract {
       path("${sample_id}.kraken.report"), emit: kraken_report
       tuple val(sample_id), path("${sample_id}_extracted_R*.fastq.gz"), emit: extracted_reads
 
-     """
+    script:
+    """
      ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.nt.kraken.report > ${sample_id}.nt.kraken.raw
 
     extract_kraken_reads.py -k ${sample_id}.nt.kraken.raw --report ${sample_id}.nt.kraken.report --taxid ${extract_reads_taxid} --include-children --include-parents --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o temp_extracted-r1.fastq -o2 temp_extracted-r2.fastq
@@ -138,7 +140,8 @@ process runkraken_extract {
       path("${sample_id}.kraken.report"), emit: kraken_report
       tuple val(sample_id), path("${sample_id}_extracted_R*.fastq.gz"), emit: extracted_reads
 
-     """
+    script:
+    """
     ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
     extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
@@ -270,7 +273,8 @@ process krakenresults {
 
     output:
         path("kraken_analytic_matrix.csv")
-
+ 
+    script:
     """
     ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${kraken_reports} -o kraken_analytic_matrix.csv
     """
@@ -313,6 +317,7 @@ process runbracken {
        tuple val(sample_id), path(krakenout)
        path(krakendb)
 
+    script:
     """
     bracken \
         -d ${krakendb} \
