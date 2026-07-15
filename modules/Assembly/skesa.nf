@@ -1,8 +1,3 @@
-
-threads = params.threads
-
-
-
 process run_skesa_reads {
     tag "$pair_id"
     label "assembly"
@@ -25,7 +20,7 @@ process run_skesa_reads {
         tuple val(pair_id), path("${pair_id}.skesa.fa"), emit: skesa_contigs
 
     """
-    skesa --reads ${reads[0]},${reads[1]} --cores ${threads} --memory ${mem_skesa} > ${pair_id}.skesa.fa
+    skesa --reads ${reads[0]},${reads[1]} --cores ${task.cpus} --memory ${params.mem_skesa} > ${pair_id}.skesa.fa
 
     """
 }

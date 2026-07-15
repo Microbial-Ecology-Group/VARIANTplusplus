@@ -1,21 +1,3 @@
-params.taxlevel = "S" //level to estimate abundance at [options: D,P,C,O,F,G,S] (default: S)
-params.readlen = 150
-
-threads = params.threads
-
-kraken_confidence = params.kraken_confidence
-kraken_options = params.kraken_options
-
-extract_reads_taxid = params.extract_reads_taxid
-extract_reads_options_single = params.extract_reads_options_single
-extract_reads_options_double = params.extract_reads_options_double
-
-
-krakendb_inter = params.krakendb_inter
-confirmation_db = params.confirmation_db
-
-kraken_options = params.kraken_options
-
 process dlkraken {
     tag { }
     label "micro"
@@ -65,7 +47,7 @@ process runkraken {
 
     script:
     """
-     ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
+    \${KRAKEN2} --db ${krakendb} --confidence ${params.kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
     """
 }
@@ -100,13 +82,13 @@ process runkraken_double_extract {
 
     script:
     """
-     ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.nt.kraken.report > ${sample_id}.nt.kraken.raw
+    \${KRAKEN2} --db ${krakendb} --confidence ${params.kraken_confidence} --paired ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.nt.kraken.report > ${sample_id}.nt.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.nt.kraken.raw --report ${sample_id}.nt.kraken.report --taxid ${extract_reads_taxid} --include-children --include-parents --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o temp_extracted-r1.fastq -o2 temp_extracted-r2.fastq
+    extract_kraken_reads.py -k ${sample_id}.nt.kraken.raw --report ${sample_id}.nt.kraken.report --taxid ${params.extract_reads_taxid} --include-children --include-parents --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o temp_extracted-r1.fastq -o2 temp_extracted-r2.fastq
 
-     ${KRAKEN2} --db ${krakendb_inter} --confidence ${kraken_confidence} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${task.cpus} --report ${sample_id}.family.kraken.report > ${sample_id}.family.kraken.raw
+    \${KRAKEN2} --db ${krakendb_inter} --confidence ${params.kraken_confidence} --paired temp_extracted-r1.fastq temp_extracted-r2.fastq --threads ${task.cpus} --report ${sample_id}.family.kraken.report > ${sample_id}.family.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_double} --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --report ${sample_id}.kraken.report --taxid ${params.extract_reads_taxid} ${params.extract_reads_options_double} --fastq-output -s1 temp_extracted-r1.fastq -s2 temp_extracted-r2.fastq -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
     
     pigz --processes ${task.cpus} *extracted*
 
@@ -142,9 +124,9 @@ process runkraken_extract {
 
     script:
     """
-    ${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
+    \${KRAKEN2} --db ${krakendb} --confidence ${kraken_confidence} ${reads[0]} ${reads[1]} --threads ${task.cpus} --report ${sample_id}.kraken.report > ${sample_id}.kraken.raw
 
-    extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${extract_reads_taxid} ${extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
+    extract_kraken_reads.py -k ${sample_id}.kraken.raw --max 1000000000 --report ${sample_id}.kraken.report --taxid ${params.extract_reads_taxid} ${params.extract_reads_options_single} --fastq-output -s1 ${reads[0]} -s2 ${reads[1]} -o ${sample_id}_extracted_R1.fastq -o2 ${sample_id}_extracted_R2.fastq
 
     pigz --processes ${task.cpus} *extracted*
 
@@ -190,7 +172,7 @@ process runkraken_merged_extract {
     script:
     """
     # ── merged file ─────────────────────────────────────────────
-    ${KRAKEN2} --db ${krakendb} ${kraken_options} --confidence ${kraken_confidence} \
+    \${KRAKEN2} --db ${krakendb} ${params.kraken_options} --confidence ${params.kraken_confidence} \
                --threads ${task.cpus} \
                --report ${sample_id}.merged.kraken.report \
                ${merged} \
@@ -198,14 +180,14 @@ process runkraken_merged_extract {
 
     extract_kraken_reads.py -k ${sample_id}.merged.kraken.raw \
         --max 1000000000 --report ${sample_id}.merged.kraken.report \
-        --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
+        --taxid ${params.extract_reads_taxid} ${params.extract_reads_options_single} \
         --fastq-output -s ${merged} \
         -o ${sample_id}_extracted_merged.fastq
 
     pigz --processes ${task.cpus} ${sample_id}_extracted_merged.fastq
 
     # ── unmerged (now interleaved single) ───────────────────────
-    ${KRAKEN2} --db ${krakendb} ${kraken_options} --confidence ${kraken_confidence} \
+    \${KRAKEN2} --db ${krakendb} ${params.kraken_options} --confidence ${params.kraken_confidence} \
                --threads ${task.cpus} \
                --report ${sample_id}.unmerged.kraken.report \
                ${unmerged} \
@@ -213,7 +195,7 @@ process runkraken_merged_extract {
 
     extract_kraken_reads.py -k ${sample_id}.unmerged.kraken.raw \
         --max 1000000000 --report ${sample_id}.unmerged.kraken.report \
-        --taxid ${extract_reads_taxid} ${extract_reads_options_single} \
+        --taxid ${params.extract_reads_taxid} ${params.extract_reads_options_single} \
         --fastq-output -s ${unmerged} \
         -o ${sample_id}_extracted_unmerged.fastq
 
@@ -249,7 +231,7 @@ process runConfirmationKraken {
 
     script:
     """
-    ${KRAKEN2} --db ${confirmation_db} --memory-mapping --confidence ${kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${task.cpus} --report ${sample_id}.confirmation.kraken.minimizer.report --report-minimizer-data > ${sample_id}.confirmation.kraken.raw
+    \${KRAKEN2} --db ${confirmation_db} --memory-mapping --confidence ${params.kraken_confidence} --paired ${extracted_reads[0]} ${extracted_reads[1]} --threads ${task.cpus} --report ${sample_id}.confirmation.kraken.minimizer.report --report-minimizer-data > ${sample_id}.confirmation.kraken.raw
     cut -f1-3,6-8 ${sample_id}.confirmation.kraken.minimizer.report > ${sample_id}.confirmation.kraken.report
 
     """
@@ -276,7 +258,7 @@ process krakenresults {
  
     script:
     """
-    ${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${kraken_reports} -o kraken_analytic_matrix.csv
+    \${PYTHON3} $baseDir/bin/kraken2_long_to_wide.py -i ${kraken_reports} -o kraken_analytic_matrix.csv
     """
 }
 
@@ -301,7 +283,7 @@ process extractedKrakenResults {
 
     script:
     """
-    ${PYTHON3} $baseDir/bin/kraken2_strains_long_to_wide_wsummary.py -i ${confirmation_kraken_reports} -o strain_classification_kraken_matrix.csv
+    \${PYTHON3} $baseDir/bin/kraken2_strains_long_to_wide_wsummary.py -i ${confirmation_kraken_reports} -o strain_classification_kraken_matrix.csv
     
 
     """

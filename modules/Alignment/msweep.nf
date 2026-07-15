@@ -1,15 +1,3 @@
-// ===============================================================
-// Updated VARIANT++ modules with mSWEEP optimizations and mGEMS
-// Replace the relevant processes in your modules/Alignment/bwa file
-// ===============================================================
-
-threads = params.threads
-dedup_sam = params.dedup_sam
-themisto_index = params.themisto_index
-clustering_file = params.clustering_file
-
-// ... [keep all your existing processes like index, bwa_align, etc.] ...
-
 // Updated pseudoalignment process (same as original but with optional threshold)
 process MergedPseudoalignFastqFiles {
 
@@ -41,7 +29,7 @@ process MergedPseudoalignFastqFiles {
         -q ${merged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
         --temp-dir tmp -t ${task.cpus} \
-        ${threshold_param} \
+        ${params.threshold_param} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_merged.fastq || true
 
@@ -50,7 +38,7 @@ process MergedPseudoalignFastqFiles {
         -q ${unmerged_fastq} \
         -i ${themisto_index}/2025_themisto_index_no \
         --temp-dir tmp -t ${task.cpus} \
-        ${threshold_param} \
+        ${params.threshold_param} \
         --gzip-output --sort-output-lines \
         -o ${sample_id}_pseudoaligned_unmerged.fastq || true
 
@@ -98,9 +86,9 @@ process MergedRunMSweep {
             --themisto-alns ${merged_fastq} \
             --clusters ${clustering_file} \
             -i ${themisto_index}/2025_themisto_index_no \
-            --min-hits ${min_hits} \
-            --alpha-prior ${alpha_prior} \
-            ${write_probs} \
+            --min-hits ${params.min_hits} \
+            --alpha-prior ${params.alpha_prior} \
+            ${params.write_probs} \
             --abundances-out ${sample_id}.merged.msweep_abundances.txt \
             --probs-out ${sample_id}.merged.msweep_probs.tsv
     else
@@ -117,9 +105,9 @@ process MergedRunMSweep {
             --themisto-alns ${unmerged_fastq} \
             --clusters ${clustering_file} \
             -i ${themisto_index}/2025_themisto_index_no \
-            --min-hits ${min_hits} \
-            --alpha-prior ${alpha_prior} \
-            ${write_probs} \
+            --min-hits ${params.min_hits} \
+            --alpha-prior ${params.alpha_prior} \
+            ${params.write_probs} \
             --abundances-out ${sample_id}.unmerged.msweep_abundances.txt \
             --probs-out ${sample_id}.unmerged.msweep_probs.tsv
     else
@@ -179,8 +167,8 @@ process MergedRunMGEMS {
 
     # ─── Process merged reads ──────────────────────────────────────────
     if [ -f "${merged_fastq}" ] && [ -s "${merged_fastq}" ] && \
-       [ -f "${msweep_merged_abundances}" ] && [ -s "${msweep_merged_abundances}" ] && \
-       [ -f "${msweep_merged_probs}" ] && [ -s "${msweep_merged_probs}" ]; then
+       [ -f "${params.msweep_merged_abundances}" ] && [ -s "${params.msweep_merged_abundances}" ] && \
+       [ -f "${params.msweep_merged_probs}" ] && [ -s "${params.msweep_merged_probs}" ]; then
         
         echo "Running mGEMS on merged reads..." >> ${sample_id}_mGEMS_summary.txt
         
@@ -200,11 +188,11 @@ process MergedRunMGEMS {
                 -i ${clustering_file} \
                 --themisto-alns ${sample_id}_merged_for_mgems.aln.gz \
                 -o mGEMS_out_merged \
-                --probs ${msweep_merged_probs} \
-                -a ${msweep_merged_abundances} \
+                --probs ${params.msweep_merged_probs} \
+                -a ${params.msweep_merged_abundances} \
                 --index ${themisto_index}/2025_themisto_index_no \
-                --min-abundance ${min_abundance} \
-                ${write_assignment_table} \
+                --min-abundance ${params.min_abundance} \
+                ${params.write_assignment_table} \
                 --compress || echo "mGEMS merged failed" >> ${sample_id}_mGEMS_summary.txt
 
             # Rename output files with sample prefix
@@ -244,11 +232,11 @@ process MergedRunMGEMS {
                 -i ${clustering_file} \
                 --themisto-alns ${sample_id}_unmerged_for_mgems.aln.gz \
                 -o mGEMS_out_unmerged \
-                --probs ${msweep_unmerged_probs} \
-                -a ${msweep_unmerged_abundances} \
+                --probs ${params.msweep_unmerged_probs} \
+                -a ${params.msweep_unmerged_abundances} \
                 --index ${themisto_index}/2025_themisto_index_no \
-                --min-abundance ${min_abundance} \
-                ${write_assignment_table} \
+                --min-abundance ${params.min_abundance} \
+                ${params.write_assignment_table} \
                 --compress || echo "mGEMS unmerged failed" >> ${sample_id}_mGEMS_summary.txt
 
             # Rename output files with sample prefix

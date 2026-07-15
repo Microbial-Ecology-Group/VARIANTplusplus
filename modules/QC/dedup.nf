@@ -1,4 +1,3 @@
-threads = params.threads
 
 process DeduplicateReads {
     tag { sample_id }

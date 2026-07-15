@@ -1,17 +1,3 @@
-include {adapter_error} from '$baseDir/modules/nf-functions.nf'
-
-if( params.adapters ) {
-    adapters = file(params.adapters)
-    if( !adapters.exists() ) return adapter_error(adapters)
-}
-
-threads = params.threads
-
-leading = params.leading
-trailing = params.trailing
-slidingwindow = params.slidingwindow
-minlen = params.minlen
-
 process runqc {
     tag { sample_id }
     label "small"
@@ -36,15 +22,15 @@ process runqc {
     
     script:
     """
-     ${TRIMMOMATIC} \
+    \${TRIMMOMATIC} \
       PE \
       -threads ${task.cpus} \
       ${reads[0]} ${reads[1]} ${sample_id}.1P.fastq.gz ${sample_id}.1U.fastq.gz ${sample_id}.2P.fastq.gz ${sample_id}.2U.fastq.gz \
-      ILLUMINACLIP:${adapters}:2:30:10:3:TRUE \
-      LEADING:${leading} \
-      TRAILING:${trailing} \
-      SLIDINGWINDOW:${slidingwindow} \
-      MINLEN:${minlen} \
+      ILLUMINACLIP:${params.adapters}:2:30:10:3:TRUE \
+      LEADING:${params.leading} \
+      TRAILING:${params.trailing} \
+      SLIDINGWINDOW:${params.slidingwindow} \
+      MINLEN:${params.minlen} \
       2> ${sample_id}.trimmomatic.stats.log
       
     """
@@ -71,6 +57,6 @@ process QCstats {
 
     script:
     """
-    ${PYTHON3} $baseDir/bin/trimmomatic_stats.py -i ${stats} -o trimmomatic.stats
+    \${PYTHON3} $baseDir/bin/trimmomatic_stats.py -i ${stats} -o trimmomatic.stats
     """
 }

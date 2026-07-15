@@ -1,16 +1,3 @@
-threads = params.threads
-
-dedup_sam = params.dedup_sam
-
-themisto_index = params.themisto_index
-
-clustering_file = params.clustering_file
-
-
-
-
-
-
 process index {
     tag "Creating bwa index"
     label "medium"
@@ -59,25 +46,25 @@ process bwa_align {
     script:
     if( deduped == "N")
         """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
+        \${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
+        \${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
         rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
+        \${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
         rm ${pair_id}_alignment.bam
         """
     else if( deduped == "Y")
         """
-        ${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
-        ${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
+        \${BWA} mem ${indexfiles[0]} ${reads} -t ${task.cpus} -R '@RG\\tID:${pair_id}\\tSM:${pair_id}' > ${pair_id}_alignment.sam
+        \${SAMTOOLS} view -@ ${task.cpus} -S -b ${pair_id}_alignment.sam > ${pair_id}_alignment.bam
         rm ${pair_id}_alignment.sam
-        ${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
+        \${SAMTOOLS} sort -@ ${task.cpus} -n ${pair_id}_alignment.bam -o ${pair_id}_alignment_sorted.bam
         rm ${pair_id}_alignment.bam
-        ${SAMTOOLS} fixmate -@ ${task.cpus} ${pair_id}_alignment_sorted.bam ${pair_id}_alignment_sorted_fix.bam
-        ${SAMTOOLS} sort -@ ${task.cpus} ${pair_id}_alignment_sorted_fix.bam -o ${pair_id}_alignment_sorted_fix.sorted.bam
+        \${SAMTOOLS} fixmate -@ ${task.cpus} ${pair_id}_alignment_sorted.bam ${pair_id}_alignment_sorted_fix.bam
+        \${SAMTOOLS} sort -@ ${task.cpus} ${pair_id}_alignment_sorted_fix.bam -o ${pair_id}_alignment_sorted_fix.sorted.bam
         rm ${pair_id}_alignment_sorted_fix.bam
-        ${SAMTOOLS} rmdup -S ${pair_id}_alignment_sorted_fix.sorted.bam ${pair_id}_alignment_dedup.bam
+        \${SAMTOOLS} rmdup -S ${pair_id}_alignment_sorted_fix.sorted.bam ${pair_id}_alignment_dedup.bam
         rm ${pair_id}_alignment_sorted_fix.sorted.bam
-        ${SAMTOOLS} view -@ ${task.cpus} -h -o ${pair_id}_alignment_dedup.sam ${pair_id}_alignment_dedup.bam
+        \${SAMTOOLS} view -@ ${task.cpus} -h -o ${pair_id}_alignment_dedup.sam ${pair_id}_alignment_dedup.bam
         rm ${pair_id}_alignment_dedup.sam
         """
     else
@@ -462,16 +449,16 @@ process bwa_rm_contaminant_fq {
     script:
     """
 
-    ${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${task.cpus} \
+    \${BWA} mem -p ${indexfiles[0]} ${reads[0]} -t ${task.cpus} \
             | ${SAMTOOLS} sort -@ ${task.cpus} -o ${pair_id}.host.sorted.bam
 
 
-    ${SAMTOOLS} index   ${pair_id}.host.sorted.bam
-    ${SAMTOOLS} idxstats ${pair_id}.host.sorted.bam > ${pair_id}.samtools.idxstats
+    \${SAMTOOLS} index   ${pair_id}.host.sorted.bam
+    \${SAMTOOLS} idxstats ${pair_id}.host.sorted.bam > ${pair_id}.samtools.idxstats
 
     # keep ALL unmapped reads (flag 4) → one interleaved FASTQ-gz
-    ${SAMTOOLS} view -b -f 4 ${pair_id}.host.sorted.bam 
-    ${SAMTOOLS} fastq -@ ${task.cpus} -f 4 \
+    \${SAMTOOLS} view -b -f 4 ${pair_id}.host.sorted.bam 
+    \${SAMTOOLS} fastq -@ ${task.cpus} -f 4 \
     ${pair_id}.host.sorted.bam \
         | pigz -p ${task.cpus} -c \
         > ${pair_id}.non.host.fastq.gz
@@ -556,7 +543,7 @@ process HostRemovalStats {
 
     script:
     """
-    ${PYTHON3} $baseDir/bin/samtools_idxstats.py \
+    \${PYTHON3} $baseDir/bin/samtools_idxstats.py \
         -i ${idxstats} \
         -o ${sample_id}_${idxstats.name}.summary
     """
