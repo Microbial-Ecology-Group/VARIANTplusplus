@@ -80,7 +80,7 @@ process DeduplicateReadsBBMap {
 process MergedDeduplicateReadsBBMap {
 
     tag   { sample_id }
-    label "dedup"
+    label "medium"
 
     publishDir "${params.output}/Deduped_reads",
                mode:'copy', pattern:'*.fastq.gz'
