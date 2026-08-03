@@ -179,7 +179,7 @@ Updated sbatch script to submit:
 #!/bin/bash
 #SBATCH -J GSV++ -o GSV_5_log.out -t 48:00:00 --mem=5G --nodes=1 --ntasks=1 --cpus-per-task=1
 
-nextflow run main_VARIANT++.nf --pipeline GSV_5 --output GSV_analysis --merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_Mh_extracted_{merged,unmerged}.fastq.gz' -profile local_slurm
+nextflow run main_VARIANT++.nf --pipeline GSV_5 --output GSV_analysis --merged_reads 'GSV_analysis/MicrobiomeAnalysis/Kraken/extracted_reads/*_extracted_{merged,unmerged}.fastq.gz' -profile local_slurm
 ```
 ## Explore the results
 

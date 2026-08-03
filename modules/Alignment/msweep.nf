@@ -1,294 +1,69 @@
-// Updated pseudoalignment process (same as original but with optional threshold)
-process MergedPseudoalignFastqFiles {
-
-    tag   { sample_id }
-    label "small"
-
-    publishDir "${params.output}/Filtered_pseudoaligned_reads", mode: 'copy'
-
-    input:
-        tuple val(sample_id),
-              path(merged_fastq),          // …_Mh_extracted_merged.fastq.gz
-              path(unmerged_fastq)         // …_Mh_extracted_unmerged.fastq.gz
-        path themisto_index
-
-    output:
-        tuple val(sample_id),
-              path("${sample_id}_pseudoaligned_merged.fastq.gz",  optional: true),
-              path("${sample_id}_pseudoaligned_unmerged.fastq.gz", optional: true),
-              emit: pseudoalignedFastqFiles
-
-    script:
-    def threshold_param = params.themisto_threshold ? "--threshold ${params.themisto_threshold}" : ""
-    
-    """
-    mkdir -p tmp
-
-    # ─ merged reads ───────────────────────────────────────────
-    ${baseDir}/bin/themisto pseudoalign \
-        -q ${merged_fastq} \
-        -i ${themisto_index}/2025_themisto_index_no \
-        --temp-dir tmp -t ${task.cpus} \
-        ${threshold_param} \
-        --gzip-output --sort-output-lines \
-        -o ${sample_id}_pseudoaligned_merged.fastq || true
-
-    # ─ unmerged (interleaved) reads ───────────────────────────
-    ${baseDir}/bin/themisto pseudoalign \
-        -q ${unmerged_fastq} \
-        -i ${themisto_index}/2025_themisto_index_no \
-        --temp-dir tmp -t ${task.cpus} \
-        ${threshold_param} \
-        --gzip-output --sort-output-lines \
-        -o ${sample_id}_pseudoaligned_unmerged.fastq || true
-
-    rm -rf tmp
-    """
-}
-
-// Updated mSWEEP process with optimized parameters and probability output
-process MergedRunMSweep {
+/*───────────────────────────────────────────────────────────────────────────
+ *  GSV read binning: themisto pseudoalign -> mSWEEP --bin-reads -> mGEMS extract
+ *
+ *  One process per sample. Merged + unmerged extracted reads are CONCATENATED
+ *  first so a single mSWEEP abundance estimate drives the binning, then the
+ *  same combined file is used for extraction (read order must match the bins).
+ *
+ *  Output: one FASTQ per GSV cluster, named  <sampleID>_GSV_<N>.fastq.gz
+ *───────────────────────────────────────────────────────────────────────────*/
+process GSV_bin_reads {
 
     tag   { sample_id }
     label "medium"
 
-    publishDir "${params.output}/mSWEEP_results", mode: 'copy',
-        saveAs: { filename ->
-            if (filename.contains('_abundances.')) "Abundance_files/${filename}"
-            else if (filename.contains('_probs.')) "Probability_files/${filename}"  
-            else filename
-        }
+    publishDir "${params.output}/GSV_binned_reads", mode: 'copy', pattern: "*_GSV_*.fastq.gz"
+    publishDir "${params.output}/mSWEEP_results",   mode: 'copy', pattern: "*_abundances.txt"
 
     input:
         tuple val(sample_id), path(merged_fastq), path(unmerged_fastq)
-        path clustering_file
-
-    output:
-        // FIXED: Changed .csv to .tsv to match actual mSWEEP output
-        tuple val(sample_id), path("${sample_id}.merged.msweep_abundances.txt"), 
-                              path("${sample_id}.merged.msweep_probs.tsv"), emit: msweep_merged
-        tuple val(sample_id), path("${sample_id}.unmerged.msweep_abundances.txt"), 
-                              path("${sample_id}.unmerged.msweep_probs.tsv"), emit: msweep_unmerged
-
-    script:
-    def min_hits = params.msweep_min_hits ?: 2
-    def alpha_prior = params.msweep_alpha_prior ?: 1.0
-    def write_probs = params.mgems_enabled ? "--write-probs" : ""
-
-    """
-    echo "=== mSWEEP Analysis for ${sample_id} ===" 
-
-    # ─── Process merged reads ──────────────────────────────────────────
-    if [ -f "${merged_fastq}" ] && [ -s "${merged_fastq}" ]; then
-        echo "Running mSWEEP on merged reads..."
-        
-        mSWEEP \
-            --themisto-alns ${merged_fastq} \
-            --clusters ${clustering_file} \
-            -i ${params.themisto_index}/2025_themisto_index_no \
-            --min-hits ${params.min_hits} \
-            --alpha-prior ${params.alpha_prior} \
-            ${params.write_probs} \
-            --abundances-out ${sample_id}.merged.msweep_abundances.txt \
-            --probs-out ${sample_id}.merged.msweep_probs.tsv
-    else
-        # Create empty files if input is missing
-        touch ${sample_id}.merged.msweep_abundances.txt
-        touch ${sample_id}.merged.msweep_probs.tsv
-    fi
-
-    # ─── Process unmerged reads ────────────────────────────────────────
-    if [ -f "${unmerged_fastq}" ] && [ -s "${unmerged_fastq}" ]; then
-        echo "Running mSWEEP on unmerged reads..."
-        
-        mSWEEP \
-            --themisto-alns ${unmerged_fastq} \
-            --clusters ${clustering_file} \
-            -i ${params.themisto_index}/2025_themisto_index_no \
-            --min-hits ${params.min_hits} \
-            --alpha-prior ${params.alpha_prior} \
-            ${params.write_probs} \
-            --abundances-out ${sample_id}.unmerged.msweep_abundances.txt \
-            --probs-out ${sample_id}.unmerged.msweep_probs.tsv
-    else
-        # Create empty files if input is missing
-        touch ${sample_id}.unmerged.msweep_abundances.txt
-        touch ${sample_id}.unmerged.msweep_probs.tsv
-    fi
-    """
-}
-
-
-
-
-
-// Optional new mGEMS process for read binning (add this if you want the full mGEMS workflow)
-process MergedRunMGEMS {
-
-    tag   { sample_id }
-    label "medium"
-
-    publishDir "${params.output}/mGEMS_results", mode: 'copy',
-        saveAs: { filename ->
-            if (filename.endsWith('_assignment_table.tsv')) "Assignment_tables/${filename}"
-            else if (filename.contains('_binned_')) "Binned_reads/${filename}"
-            else filename
-        }
-
-    input:
-        tuple val(sample_id), 
-              path(merged_fastq), path(unmerged_fastq),           // Original FASTQ files
-              path(pseudo_merged_fastq), path(pseudo_unmerged_fastq), // Pseudoaligned FASTQ (not used)
-              path(msweep_merged_abundances), path(msweep_merged_probs),
-              path(msweep_unmerged_abundances), path(msweep_unmerged_probs)
-        path clustering_file
         path themisto_index
+        path clustering_file
 
     output:
-        // Binned reads
-        path("${sample_id}_merged_binned_*.fastq.gz"),    optional: true, emit: binned_merged_reads
-        path("${sample_id}_unmerged_binned_*.fastq.gz"),  optional: true, emit: binned_unmerged_reads
-        
-        // Assignment tables 
-        path("${sample_id}_merged_assignment_table.tsv"), optional: true, emit: assignment_table_merged
-        path("${sample_id}_unmerged_assignment_table.tsv"), optional: true, emit: assignment_table_unmerged
-        
-        // Summary
-        path("${sample_id}_mGEMS_summary.txt"),           emit: mgems_summary
+        tuple val(sample_id), path("${sample_id}_GSV_*.fastq.gz"), optional: true, emit: binned_reads
+        tuple val(sample_id), path("${sample_id}_abundances.txt"),                 emit: abundances
 
     script:
-    def min_abundance = params.mgems_min_abundance ?: 0.01
-    def write_assignment_table = params.mgems_write_assignment_table ? "--write-assignment-table" : ""
-
+    def idx = "${themisto_index}/${params.themisto_index_prefix}"
     """
-    mkdir -p mGEMS_out_merged mGEMS_out_unmerged
+    set -euo pipefail
+    mkdir -p tmp bins
 
-    echo "=== mGEMS Analysis for ${sample_id} ===" > ${sample_id}_mGEMS_summary.txt
+    # 1) Combine merged + unmerged extracted reads into ONE per-sample read set.
+    #    (cat of gzip members is valid gzip; themisto reads it fine.)
+    cat ${merged_fastq} ${unmerged_fastq} > ${sample_id}_all.fastq.gz
 
-    # ─── Process merged reads ──────────────────────────────────────────
-    if [ -f "${merged_fastq}" ] && [ -s "${merged_fastq}" ] && \
-       [ -f "${params.msweep_merged_abundances}" ] && [ -s "${params.msweep_merged_abundances}" ] && \
-       [ -f "${params.msweep_merged_probs}" ] && [ -s "${params.msweep_merged_probs}" ]; then
-        
-        echo "Running mGEMS on merged reads..." >> ${sample_id}_mGEMS_summary.txt
-        
-        # First, we need to create pseudoalignment files for mGEMS
-        # mGEMS needs .aln files, not .fastq files from pseudoalignment
-        mkdir -p tmp
-        ${baseDir}/bin/themisto pseudoalign \
-            -q ${merged_fastq} \
-            -i ${themisto_index}/2025_themisto_index_no \
-            --temp-dir tmp -t ${task.cpus} \
-            --gzip-output --sort-output-lines \
-            -o ${sample_id}_merged_for_mgems.aln || echo "Themisto failed" >> ${sample_id}_mGEMS_summary.txt
-        
-        if [ -f "${sample_id}_merged_for_mgems.aln.gz" ]; then
-            mGEMS \
-                -r ${merged_fastq} \
-                -i ${clustering_file} \
-                --themisto-alns ${sample_id}_merged_for_mgems.aln.gz \
-                -o mGEMS_out_merged \
-                --probs ${params.msweep_merged_probs} \
-                -a ${params.msweep_merged_abundances} \
-                --index ${themisto_index}/2025_themisto_index_no \
-                --min-abundance ${params.min_abundance} \
-                ${params.write_assignment_table} \
-                --compress || echo "mGEMS merged failed" >> ${sample_id}_mGEMS_summary.txt
+    # 2) Pseudoalign the combined reads (sorted output is REQUIRED for mGEMS).
+    ${baseDir}/bin/themisto pseudoalign \\
+        -q ${sample_id}_all.fastq.gz \\
+        -i ${idx} \\
+        --temp-dir tmp -t ${task.cpus} \\
+        --rc --sort-output-lines --gzip-output \\
+        -o ${sample_id}.aln
 
-            # Rename output files with sample prefix
-            if [ -d "mGEMS_out_merged" ]; then
-                for file in mGEMS_out_merged/*.fastq.gz; do
-                    if [ -f "\$file" ]; then
-                        basename=\$(basename "\$file")
-                        mv "\$file" "${sample_id}_merged_binned_\$basename"
-                    fi
-                done
-                
-                # Copy assignment table if it exists
-                if [ -f "mGEMS_out_merged/reads_to_groups.tsv" ]; then
-                    cp "mGEMS_out_merged/reads_to_groups.tsv" "${sample_id}_merged_assignment_table.tsv"
-                fi
-            fi
+    # 3) mSWEEP: abundance estimation + binning in one call.
+    #    Writes ${sample_id}_abundances.txt and <group>.bin files in the work dir.
+    mSWEEP \\
+        --themisto ${sample_id}.aln.gz \\
+        --themisto-index ${idx} \\
+        -i ${clustering_file} \\
+        -o ${sample_id} \\
+        --bin-reads \\
+        -t ${task.cpus}
+
+    # 4) Extract reads for each GSV bin, rename by sample + GSV cluster.
+    for binfile in [0-9]*.bin; do
+        [ -e "\$binfile" ] || continue
+        group=\$(basename "\$binfile" .bin)
+        mGEMS extract --bins "\$binfile" -r ${sample_id}_all.fastq.gz -o bins/
+        # mGEMS writes bins/<group>_1.fastq.gz for single-end input
+        if [ -f "bins/\${group}_1.fastq.gz" ]; then
+            mv "bins/\${group}_1.fastq.gz" "${sample_id}_GSV_\${group}.fastq.gz"
         fi
-    fi
+    done
 
-    # ─── Process unmerged reads ────────────────────────────────────────
-    if [ -f "${unmerged_fastq}" ] && [ -s "${unmerged_fastq}" ] && \
-       [ -f "${msweep_unmerged_abundances}" ] && [ -s "${msweep_unmerged_abundances}" ] && \
-       [ -f "${msweep_unmerged_probs}" ] && [ -s "${msweep_unmerged_probs}" ]; then
-        
-        echo "Running mGEMS on unmerged reads..." >> ${sample_id}_mGEMS_summary.txt
-        
-        ${baseDir}/bin/themisto pseudoalign \
-            -q ${unmerged_fastq} \
-            -i ${themisto_index}/2025_themisto_index_no \
-            --temp-dir tmp -t ${task.cpus} \
-            --gzip-output --sort-output-lines \
-            -o ${sample_id}_unmerged_for_mgems.aln || echo "Themisto failed" >> ${sample_id}_mGEMS_summary.txt
-        
-        if [ -f "${sample_id}_unmerged_for_mgems.aln.gz" ]; then
-            mGEMS \
-                -r ${unmerged_fastq} \
-                -i ${clustering_file} \
-                --themisto-alns ${sample_id}_unmerged_for_mgems.aln.gz \
-                -o mGEMS_out_unmerged \
-                --probs ${params.msweep_unmerged_probs} \
-                -a ${params.msweep_unmerged_abundances} \
-                --index ${themisto_index}/2025_themisto_index_no \
-                --min-abundance ${params.min_abundance} \
-                ${params.write_assignment_table} \
-                --compress || echo "mGEMS unmerged failed" >> ${sample_id}_mGEMS_summary.txt
-
-            # Rename output files with sample prefix
-            if [ -d "mGEMS_out_unmerged" ]; then
-                for file in mGEMS_out_unmerged/*.fastq.gz; do
-                    if [ -f "\$file" ]; then
-                        basename=\$(basename "\$file")
-                        mv "\$file" "${sample_id}_unmerged_binned_\$basename"
-                    fi
-                done
-                
-                # Copy assignment table if it exists
-                if [ -f "mGEMS_out_unmerged/reads_to_groups.tsv" ]; then
-                    cp "mGEMS_out_unmerged/reads_to_groups.tsv" "${sample_id}_unmerged_assignment_table.tsv"
-                fi
-            fi
-        fi
-    fi
-
-    # ─── Generate summary statistics ───────────────────────────────────
-    echo "" >> ${sample_id}_mGEMS_summary.txt
-    echo "Results Summary:" >> ${sample_id}_mGEMS_summary.txt
-    echo "Merged binned reads:" >> ${sample_id}_mGEMS_summary.txt
-    ls -la ${sample_id}_merged_binned_*.fastq.gz 2>/dev/null >> ${sample_id}_mGEMS_summary.txt || echo "  No merged binned files" >> ${sample_id}_mGEMS_summary.txt
-    echo "Unmerged binned reads:" >> ${sample_id}_mGEMS_summary.txt  
-    ls -la ${sample_id}_unmerged_binned_*.fastq.gz 2>/dev/null >> ${sample_id}_mGEMS_summary.txt || echo "  No unmerged binned files" >> ${sample_id}_mGEMS_summary.txt
-    
-    # Clean up
-    rm -rf tmp mGEMS_out_merged mGEMS_out_unmerged *.aln.gz
-    """
-}
-
-// Keep your existing MergedParsemSweepResults process unchanged
-process MergedParsemSweepResults {
-    tag "parse_msweep"
-    label "micro"                         
-
-    publishDir "${params.output}/Results", mode: 'copy'
-
-    input:
-        path(msweep_files)                 
-
-    output:
-        path("*_summary.tsv"),      emit: msweep_summary
-        path("*_count_matrix.tsv"), emit: msweep_matrix
-
-    script:
-    """
-    python $baseDir/bin/parse_msweep_results.py \
-        --msweep_dir . \
-        --reads_dir  $baseDir/${params.output}/HostRemoval/NonHostFastq/ \
-        -o mSweep_results \
-        --filter-mode rel_abund_by_GSV
+    # tidy up large intermediates (keep nothing but declared outputs)
+    rm -rf tmp bins ${sample_id}_all.fastq.gz ${sample_id}.aln.gz
     """
 }

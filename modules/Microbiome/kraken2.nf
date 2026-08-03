@@ -145,8 +145,8 @@ process runkraken_merged_extract {
             ? params.kraken_options.join(' ')
             : (params.kraken_options ?: '')
         ).contains('--memory-mapping')
-           ? 'small_memory_long_time'
-           : 'large_long'
+           ? 'large'
+           : 'xlarge'
     )
 
     publishDir "${params.output}/MicrobiomeAnalysis", mode: 'copy',

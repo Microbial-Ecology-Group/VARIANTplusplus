@@ -231,6 +231,7 @@ process RunBactopia {
 
 process PseudoalignFastqFiles {
     tag "${sampleName}"
+    label "medium"
 
     publishDir "${params.output}/Filtered_pseudoaligned_reads", mode: 'copy'
 
@@ -319,7 +320,7 @@ process RunMSweep {
 process MergedRunMSweep {
 
     tag   { sample_id }
-    label "small_memory_short_time"
+    label "medium"
 
     publishDir "${params.output}/mSWEEP_results", mode: 'copy'
 
