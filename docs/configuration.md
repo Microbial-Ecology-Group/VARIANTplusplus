@@ -2,13 +2,11 @@
 
 * [Configuration](#configuration)
 * [Customize environmental variables using profiles](#customize-environment-variables-using-profiles)
-* [Customize parameters using the commandline](#customize-amr-pipeline-parameters)
-  * [Modifying the params.config file](#modifying-the-paramsconfig-file) 
+* [Customize VARIANT++ pipeline parameters](#customize-variant-pipeline-parameters)
+  * [Modifying the params.config file](#modifying-the-paramsconfig-file)
   * [Modifying parameters using the command-line](#modifying-parameters-using-the-command-line)
     * [Analyzing your samples](#analyzing-your-samples)
-    * [Running with Kraken](#running-with-kraken)
-    * [Including SNP confirmation](#running-with-snp-confirmation)
-    * [Including deduplicated count results](#running-with-deduplicated-counts)
+    * [Running with Kraken2](#running-with-kraken2)
 * [Selecting the right pipeline](#selecting-the-right-pipeline)
 
 ## Configuration
@@ -16,17 +14,17 @@
 
 The pipeline source code comes with two configuration files that can be used to set environment variables and default command-line options. These configuration files can be found in the root source code directory and are called **nextflow.config** and **params.config**.
 
-The **nextflow.config** file mainly contains parameters regarding how AMR++ will run on your computing cluster using the ```--profile``` parameter. 
+The **nextflow.config** file mainly contains parameters regarding how VARIANT++ will run on your computing cluster using the ```-profile``` parameter.
 
-The **params.config** contains parameters that control which files are being analyzed and parameters for the software in the pipeline. Setting the variables in the **params.config** before hand may be useful in situations when you do not want to specify a long list of options from the command line or want to have a seperate file for each project. You can modify these files, save the changes, and run the pipeline directly. More details below.
+The **params.config** contains parameters that control which files are being analyzed and parameters for the software in the pipeline. Setting the variables in the **params.config** beforehand may be useful in situations when you do not want to specify a long list of options from the command line or want to have a separate file for each project. You can modify these files, save the changes, and run the pipeline directly. More details below.
 
 
 ## Customize Environment Variables using profiles
 ----------------------------------------------
 
-The **nextflow.config** contains a section that allows the use of environment "profiles" when running AmrPlusPlus. Further information for each profile can be found within the /config directory. In brief, profiles allow control over how the pipeline is run on different computing clusters. We recommend the "singularity" profile which employs singularity containers which contain all the required bioinformatic tools.
+The **nextflow.config** contains a section that allows the use of environment "profiles" when running VARIANT++. Further information for each profile can be found within the `/config` directory. In brief, profiles allow control over how the pipeline is run on different computing clusters. We recommend the "conda" profile, which builds a single conda environment (`envs/VARIANT++_env.yaml`) containing all the required bioinformatic tools.
 
-We make the following profiles available to suit your computing needs; "local", "local_slurm", "conda","conda_slurm", "singularity", "singularity_slurm", and "docker". You specify which profile to use with the ```-profile`` flag.
+We make the following profiles available to suit your computing needs: "local", "local_slurm", "conda", "conda_slurm", "singularity", "singularity_slurm", and "docker". You specify which profile to use with the `-profile` flag.
 
 
 ```bash
@@ -36,7 +34,6 @@ profiles {
   }
   local_slurm {
     includeConfig "config/local_slurm.config"
-    process.executor = 'slurm'
   }
   conda {
     includeConfig "config/conda.config"
@@ -58,7 +55,6 @@ profiles {
   }
   conda_slurm {
     includeConfig "config/conda_slurm.config"
-    process.executor = 'slurm'
     conda.cacheDir = "$baseDir/envs/"
     conda.enabled = true
     conda.useMamba = true
@@ -66,7 +62,6 @@ profiles {
   }
    singularity_slurm {
     includeConfig "config/singularity_slurm.config"
-    process.executor = 'slurm'
     singularity.enabled = true
     singularity.autoMounts = true
     singularity.cacheDir = "$baseDir/envs/"
@@ -74,72 +69,88 @@ profiles {
 }
 ```
 
-## Customize AMR++ pipeline parameters
+Note: the `docker`/`singularity`/`singularity_slurm` profiles currently point at `enriquedoster/amrplusplus:latest`, a container image inherited from the AMR++ fork. It has not been verified to include Themisto, mSWEEP, or mGEMS — the `conda` profile is the actively-tested path for VARIANT++ today (see [installation.md](installation.md)).
+
+## Customize VARIANT++ pipeline parameters
 ------------------------------
 
-The params section allows you to set the different commmand-line options that can be used within the pipeline. Here, you can specify input/output options, trimming options, and algorithm options.
+The params section allows you to set the different command-line options that can be used within the pipeline. Here, you can specify input/output options, trimming options, and classification options.
 
 ### Modifying the params.config file
-Below is a list of all of the parameters that AMR++ uses by default. They can be found in the ```params.config``` file in the main directory. These parameters can be modified by changing this file or specifying any of these parameters on the command line using a double dash, like this: ```--reads "path/to/your/reads/*_R{1,2}.fastq.gz"```. Otherwise, change the parameters in the ```params.config``` file prior to running the AMR++ pipeline.
+Below is a list of the parameters VARIANT++ uses by default. They can be found in the `params.config` file in the main directory. These parameters can be modified by changing this file or specifying any of these parameters on the command line using a double dash, like this: `--reads "path/to/your/reads/*_R{1,2}.fastq.gz"`. Otherwise, change the parameters in the `params.config` file prior to running the VARIANT++ pipeline.
 
-These are all of the parameters used by AMR++:
+These are all of the parameters used by VARIANT++ (see `params.config` for the authoritative, up-to-date list):
 ```bash
 params {
+    /* Display help message */
+    help = false
+
     /* Location of forward and reverse read pairs */
     reads = "${baseDir}/data/raw/*_R{1,2}.fastq.gz"
 
     /* Location of reference/host genome */
-    reference = "${baseDir}/data/host/chr21.fasta.gz"
+    host = "${baseDir}/data/host/chr21.fasta.gz"
+
+    /* Optionally, the location of bwa host index files (path + wildcard *) */
+    host_index = ""
 
     /* Output directory */
     output = "test_results"
-    
-    /* Kraken database location, default is "null" */   
-    kraken_db = null
 
-    /* Location of amr index files */
-    amr_index = ""
+    /* Default memory to run clumpify (GSV_2 deduplication) */
+    clumpify_mem_gb = 8
 
-    /* Location of antimicrobial resistance (MEGARes) database */
-    amr = "${baseDir}/data/amr/megares_database_v3.00.fasta"
+    /* Kraken2 confidence score */
+    kraken_confidence = 0.1
 
-    /* Location of amr annotation file */
-    annotation = "${baseDir}/data/amr/megares_annotations_v3.00.csv"
+    /* Kraken2 database location */
+    kraken_db = ""
+    krakendb_inter = ""
+    kraken_options = ""
 
-    /* Location of SNP confirmation script */
-    snp_confirmation = "${baseDir}/bin/snp_confirmation.py"
+    /* Kraken2 db for genus/species confirmation */
+    confirmation_db = ""
+
+    /* Optional flags for extract_kraken_reads.py */
+    extract_reads_taxid = "75985"
+    extract_reads_options_single = "--include-children"
+    extract_reads_options_double = "--include-children"
+
+    /* Location of reference genome directory */
+    genome_ref_dir = ""
+
+    coverage_threshold = 0.0001
+    dedup_sam = "Y"
 
     /* Number of threads */
     threads = 4
 
     /* Trimmomatic trimming parameters */
     adapters = "${baseDir}/data/adapters/nextera.fa"
-
     leading = 3
     trailing = 3
     slidingwindow = "4:15"
     minlen = 36
 
-    /* Resistome threshold */
-    threshold = 10
-
-    /* Starting rarefaction level */
-    min = 5
-
-    /* Ending rarefaction level */
-    max = 100
-
-    /* Number of levels to skip */
-    skip = 5
-
-    /* Number of iterations to sample at */
-    samples = 1
-
-    /* multiQC */
+    /* multiQC config directory */
     multiqc = "$baseDir/data/multiqc"
 
-    /* Display help message */
-    help = false
+    /* Optional flag for running GSV subworkflows starting with merged/unmerged reads (GSV_2 - GSV_5) */
+    merged_reads = "${params.output}/Flash_reads/*.{extendedFrags,notCombined}.fastq.gz"
+
+    QC_dir = "${params.output}/QC_trimming/Paired/"
+    QC_prefix = "QC_trimmed"
+
+    /* Themisto pseudoalignment index (used by GSV_5) */
+    themisto_index = "$baseDir/data/themisto"
+    themisto_index_prefix = "2025_themisto_index_no"
+    clustering_file = "$baseDir/data/themisto/2025_Mh_msweep_annotations_k8.tsv"
+
+    /* mGEMS binning (GSV_5_mGEMS) */
+    run_mgems = true
+    msweep_write_probs = true
+    mgems_write_assignment_table = true
+    mgems_min_abundance = 0.01
 }
 ```
 ### Modifying parameters using the command-line
@@ -151,81 +162,63 @@ If you intend to run multiple samples in parallel, you must specify a glob patte
 For example, the default parameters can be used to run the pipeline with this command:
 
 ```bash
-nextflow run main_AMR++.nf -profile singularity
+nextflow run main_VARIANT++.nf -profile conda --pipeline GSV_1
 ```
 
-This will run the default samples through the pipeline and this can be seen below, under the ```--reads``` parameter. To change the reads that were analyzed, you should specify the ```--reads`` parameter on the command line. Here, we can use regular expressions to point to your samples in a different directory.
+This will run the default samples through the pipeline, as seen under the `--reads` parameter. To change the reads being analyzed, specify the `--reads` parameter on the command line:
 
 ```bash
-nextflow run main_AMR++.nf -profile singularity  --reads "path/to/your/reads/*_R{1,2}.fastq.gz" 
+nextflow run main_VARIANT++.nf -profile conda --pipeline GSV_1 --reads "path/to/your/reads/*_R{1,2}.fastq.gz"
 ```
 
-#### Running with Kraken
+#### Running with Kraken2
 -----
-By default, the pipeline uses the default minikraken database (~4GB) to classify and assign taxonomic labels to your sequences. As Kraken loads this database into memory, this mini database is particularly useful for people who do not have access to large memory servers. We provide a script to easily download the minikraken database.
+GSV_4 uses Kraken2 to extract reads belonging to your target species before classification. You need to point `--kraken_db` at a Kraken2 database on your system — see [docs/VARIANT++_step_by_step.md](VARIANT++_step_by_step.md) for how to download the coreNT database used for GSV benchmarking.
 
 ```bash
- sh download_minikraken.sh
- ```
-
-If you would like to use a custom database or the standard Kraken database (~160GB), you will need to build it yourself and modify the **kraken_db** environment variable in the ```params.config ``` file to point to its location on your machine. 
-
-#### Running with SNP confirmation
------
-To include SNP confirmation as part of the AMR++ analysis, you have to include the ```--snp Y``` flag. Like this:
-
-```bash
-nextflow run main_AMR++.nf -profile singularity  --reads "path/to/your/reads/*_R{1,2}.fastq.gz" --snp Y
+nextflow run main_VARIANT++.nf -profile conda --pipeline GSV_4 --kraken_db /path/to/your/kraken2_db
 ```
-
-#### Running with deduplicated counts
------
-Additionally, you can also output deduplicated counts by cinluding the flag, ```--deduped Y```. Like this:
-
-```bash
-nextflow run main_AMR++.nf -profile singularity  --reads "path/to/your/reads/*_R{1,2}.fastq.gz" --snp Y --deduped Y
-```
-
 
 ## Selecting the right pipeline
 
-AMR++ now includes the option to run different components of the pipeline at a time by specifying the ```--pipeline``` flag.
+VARIANT++ lets you run different components of the GSV pipeline at a time by specifying the `--pipeline` flag.
 
-Main pipeline options
-  * Standard AMR pipeline ( QC trimming > Host DNA removal > Resistome alignment > Resistome results)
+Main pipeline option
+  * Run all GSV steps end-to-end (QC trim + merge > dedup > host removal > Kraken2 extraction > Themisto/mSWEEP classification)
     ```bash
-    --pipeline standard_AMR
-    ```  
-  * Fast AMR pipeline (QC trimming > Resistome alignment > Resistome results)
-    ```bash
-    --pipeline fast_AMR
-    ``` 
-  * AMR pipeline with kraken ( QC trimming > Host DNA removal > Resistome alignment > Resistome results) & (Non-host reads > Microbiome analysis)
-    ```bash
-    --pipeline standard_AMR_wKraken
-    ``` 
-  * 16S Microbiome analysis with qiime2 (DADA2 QC > Classification with SILVA)
-    ```bash
-    --pipeline qiime2
-    ``` 
+    --pipeline full_GSV_pipeline
+    ```
+
 Pipeline components
-  * Evaluate QC with multiQC
+  * Evaluate raw-read QC with FastQC/MultiQC
     ```bash
     --pipeline eval_qc
-    ``` 
-  * QC trimming with trimmomatic
+    ```
+  * Merge paired-end reads with FLASH only
     ```bash
-    --pipeline trim_qc
-    ``` 
-  * Align reads to host DNA and remove contaminants
+    --pipeline merge
+    ```
+  * GSV_1: QC trimming (Trimmomatic) + merge reads (FLASH)
     ```bash
-    --pipeline rm_host
-    ``` 
-  * Only perform AMR++ resistome analysis
+    --pipeline GSV_1
+    ```
+  * GSV_2: deduplicate merged/unmerged reads (BBMap clumpify)
     ```bash
-    --pipeline resistome
-    ``` 
-  * Only perform microbiome analysis with Kraken
+    --pipeline GSV_2
+    ```
+  * GSV_3: remove host DNA (BWA)
     ```bash
-    --pipeline kraken
-    ``` 
+    --pipeline GSV_3
+    ```
+  * GSV_4: extract target-species reads with Kraken2
+    ```bash
+    --pipeline GSV_4
+    ```
+  * GSV_5: classify GSVs with Themisto + mSWEEP
+    ```bash
+    --pipeline GSV_5
+    ```
+  * GSV_5_mGEMS: classify and bin reads per GSV with Themisto + mSWEEP + mGEMS
+    ```bash
+    --pipeline GSV_5_mGEMS
+    ```

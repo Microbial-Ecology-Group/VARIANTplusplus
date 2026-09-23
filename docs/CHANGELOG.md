@@ -1,5 +1,9 @@
-Details on AMR++ updates
+Details on VARIANT++ updates
 ------------
+
+VARIANT++ was forked from AMR++ and narrowed down to a single pipeline: classifying genomic sequence variants (GSVs) with Kraken2, Themisto, and mSWEEP/mGEMS. The entries below from the AMR++ v3 update onward are retained as legacy/pre-fork history; they describe the resistome-focused AMR++ pipeline, not the current GSV pipeline.
+
+## Legacy AMR++ history (pre-fork)
 
 ## 2022-09-06 : AMR++ v3 update
 - Change in repository from [AMR++ v2](https://github.com/meglab-metagenomics/amrplusplus_v2) to this repository under the [microbial ecology group github page](https://github.com/Microbial-Ecology-Group/AMRplusplus). This repository will include all further updates to AMR++. 

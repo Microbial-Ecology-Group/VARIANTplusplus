@@ -275,41 +275,61 @@ done
 
 # Step 4: Analyzing benchmarking results
 
-**In progress**
+Once the simulated samples have been classified (Step 3.2), we parse the raw mSWEEP output twice: first **without** any filter, to see the unfiltered false-positive rate and decide on a GSV cluster count and per-GSV filtration thresholds, and then a **second time** using those thresholds to get the results you'll actually evaluate for precision/recall.
 
 ## 4.1 Parse msweep results without a filter
 
-
+Run `parse_msweep_results.py` against your results directory with `--filter-mode rel_abund` and a relative-abundance threshold of `-1`, which effectively disables filtering (every detected GSV, no matter how few reads support it, is kept). This gives you the raw, unfiltered picture of what Themisto/mSWEEP found in every simulated sample.
 
 ```
-
 python3 parse_msweep_results.py \
     --input_dirs test_low_iters_results/ \
     --output_file no_filter_output \
     --filter-mode rel_abund \
     --rel-abund-threshold -1
-
-python parse_msweep_results.py --input_dirs test_low_iters_results/ --output_file no_filter_results --filter-mode rel_abund --rel-abund-threshold -1
-
 ```
 
+This produces `no_filter_output_summarized.txt`, a tab-separated table with one row per sample (per read type: merged/unmerged/combined) containing, among other columns: `numGSVs` (`0_GSVs` for off-target samples, otherwise the expected on-target GSVs), `k_col`/`classification_cluster` (the number of GSV clusters used for that simulation), `kraken_confidence`, `total_input_reads`, and `filtered_GSV_groups`/`found_GSV_groups` (the detected GSVs and their read counts/relative abundances). This unfiltered file is the input to both analyses below.
 
-## 4.2 Analyze off target results and false positive rate in R
+## 4.2 Analyze off-target results and false positive rate in R
+
+Load `no_filter_output_summarized.txt` into R and filter to the off-target, combined-read rows — any GSV detected here is a false positive by definition, since these simulated samples don't contain your target species' GSVs at all:
+
+```r
+df <- read.table("no_filter_output_summarized.txt", sep = "\t", header = TRUE,
+                  stringsAsFactors = FALSE, quote = "", comment.char = "")
+
+df_offtarget <- df[df$read_type == "combined" & df$numGSVs == "0_GSVs", ]
+```
+
+From `df_offtarget`, compute two things:
+
+1. **False-positive rate by cluster count and Kraken confidence** — for each `classification_cluster` (i.e. each `k_#`, the number of GSV clusters used) and `kraken_confidence` combination, calculate the proportion of samples where any GSV survived (`filtered_GSV_groups` is non-empty). Compare these rates across cluster counts to see which numbers of GSV clusters and which Kraken confidence keep false positives lowest — this tells you which `classification_cluster` value to carry forward into Step 4.3.
+2. **Per-GSV false-positive read fraction** — for the `classification_cluster` you're leaning towards, unpack `filtered_GSV_groups` into one row per (sample, detected GSV), and compute `read_fraction = detected_read_count / total_input_reads` for each detection. Group by GSV id and take a high percentile (e.g. the 99th) of `read_fraction` per GSV — this is the "expected false-positive rate" for that GSV: the read fraction you'd expect to see purely from misclassification noise, which any genuine on-target detection should exceed.
 
 ### 4.2.1 Pick filtration rates for each GSV
 
-Update `parse_msweep_results.py` so that "GSV_rel_map" matches the number of GSVs you are picking and their simulated false positive rates. 
+Update `parse_msweep_results.py` so that `GSV_rel_map` (near the top of the script) matches the number of GSVs you are picking and their computed false-positive rates from step 4.2 above — one entry per GSV id, keyed by GSV number, valued at that GSV's 99th-percentile false-positive read fraction:
 
-```
-/scratch/group/pinnell_lab/kayla.hazlett/Fuso_Benchmarking/F_Necrophorum_Benchmarking/
-
-
-python parse_msweep_results.py --input_dirs test_low_iters_results/ --output_file results_test --filter-mode rel_abund_by_GSV
+```python
+GSV_rel_map = {1: 0.00138, 2: 0.0000653, 3: 0.000743, ...}  # one entry per GSV id
 ```
 
+Then re-run the parser, this time using the `rel_abund_by_GSV` filter mode (the script's default), which subtracts each GSV's expected false-positive read count before deciding whether a detection survives:
 
+```
+python parse_msweep_results.py \
+    --input_dirs test_low_iters_results/ \
+    --output_file results_test \
+    --filter-mode rel_abund_by_GSV
+```
+
+This produces `results_test_summarized.txt`, the filtered results you'll use for the evaluation below.
 
 ## 4.3 Evaluate classification performance
 
+Using `results_test_summarized.txt`, filter to the **on-target** combined rows (`numGSVs != "0_GSVs"`, `read_type == "combined"`). For each sample, compare `expected_GSVs` against the surviving `filtered_GSV_groups` to compute precision, recall, and F1 (true positives = expected GSVs that were detected; false positives = detected GSVs not expected; false negatives = expected GSVs not detected). Summarize these metrics grouped by `classification_cluster` and `kraken_confidence`, the same way you grouped the off-target false-positive rate in 4.2.
+
 ### 4.3.1 Pick optimal GSV number
- 
+
+Cross-reference the off-target false-positive-rate-by-cluster table from 4.2 against the on-target precision/recall-by-cluster table from 4.3: pick the `classification_cluster` (number of GSVs) and Kraken confidence that keep the false-positive rate acceptably low while maximizing recall and precision. Lock in that cluster count, its Kraken confidence, and the corresponding `GSV_rel_map` thresholds in `parse_msweep_results.py` before moving on to your full-scale simulation run.

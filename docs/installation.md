@@ -1,19 +1,17 @@
 # Installation overview
-This section will help you get started with running the AMR++ pipeline. This tutorial assumes you will be running the pipeline from a POSIX compatible system such as Linux, Solaris, or OS X.
+This section will help you get started with running the VARIANT++ pipeline. This tutorial assumes you will be running the pipeline from a POSIX compatible system such as Linux, Solaris, or OS X.
 
-There are four main ways that you can install and run AMR++, based on what is easiest for your computing cluster and whether conda, singularity, or docker is already installed. 
+There are several ways to install and run VARIANT++, based on what is easiest for your computing cluster. Based on our experience, we recommend the **conda** installation below — it's the actively-tested path and the one used throughout the [step-by-step guide](VARIANT++_step_by_step.md) and the [GSV benchmarking tutorial](GSV_benchmarking_tutorial.md).
 
-Based on our experience, we recommend following the instructions to [install miniconda without "sudo" permissions](#installing-miniconda-without-sudo-permissions).
-
-Usually, you'll have to install nextflow, unless it's available to be loaded as module in your HPC.
+Usually, you'll have to install nextflow, unless it's available to be loaded as a module in your HPC.
 * [Install Nextflow](#installing-nextflow)
 
-To make all of the bioinformatic tool dependencies available for use with AMR++, we have a few options:
-* [Run AMR++ with Anaconda](#run-amr-with-anaconda)
+To make all of the bioinformatic tool dependencies available for use with VARIANT++, we have a few options:
+* [Run VARIANT++ with Anaconda](#run-variant-with-anaconda) (recommended)
     * [Install miniconda without "sudo" permissions](#installing-miniconda-without-sudo-permissions)
-* [Run AMR++ with Singularity](#run-amr-using-singularity)
-* [Run AMR++ with Docker](#run-amr-using-docker)
-* [Run AMR++ with locally installed tools](#local-installation-of-tools)
+* [Run VARIANT++ with Singularity](#run-variant-using-singularity)
+* [Run VARIANT++ with Docker](#run-variant-using-docker)
+* [Run VARIANT++ with locally installed tools](#local-installation-of-tools)
 
 ## Installing nextflow
 
@@ -36,127 +34,115 @@ chmod u+x nextflow
 mv nextflow $HOME/bin
 ```
 
-## Run AMR++ with anaconda
+## Run VARIANT++ with Anaconda
 Requirements:
 * Nextflow
-* Anaconda
-
-If anaconda is already installed and nextflow is working, we'll just need to download the AMR++ github repository.
+* Anaconda or Miniconda
 
 ```bash
-# Download AMR++ repository
-git clone https://github.com/Microbial-Ecology-Group/AMRplusplus.git
+# Download the VARIANT++ repository
+git clone https://github.com/Microbial-Ecology-Group/VARIANTplusplus.git
 
-# Navigate into direcotry
-cd AMRplusplus
+# Navigate into the directory
+cd VARIANTplusplus
 
 # Install mamba for faster installation
 conda install mamba -n base -c conda-forge
 
-# Test AMR++ by specifying the "conda" profile. 
-nextflow run main_AMR++.nf -profile conda
+# Create the VARIANT++ conda environment
+conda env create -f envs/VARIANT++_env.yaml
+conda activate VARIANT++_env
 
-# If your computing cluster uses the slurm scheduler, modify the script "run_AMR++_slurm.sh" to
-# accurately request computing resources. Then, run it using:
-sbatch run_AMR++_slurm.sh
+# Run VARIANT++, specifying the "local" profile since dependencies are now on your $PATH
+nextflow run main_VARIANT++.nf -profile local --pipeline eval_qc
+
+# If your computing cluster uses the slurm scheduler, modify "run_VARIANT++_slurm.sbatch" to
+# accurately request computing resources, then run it using:
+sbatch run_VARIANT++_slurm.sbatch
 ```
 
+Alternatively, Nextflow can build the conda environment for you automatically via the `conda`/`conda_slurm` profiles (no manual `conda env create` needed):
 
+```bash
+nextflow run main_VARIANT++.nf -profile conda --pipeline eval_qc
+```
 
-### Installing miniconda without "sudo" permissions.
+### Installing miniconda without "sudo" permissions
 
-We will go over a typical pipeline setup scenario in which you connect to a remote server, install miniconda (or use a local installation of anaconda), and download the pipeline source code. In cases where the Anaconda installation on your computing cluster is not updated or you are experiencing errors while installing packages, we recommend miniconda. Use [this site](https://conda.io/projects/conda/en/latest/user-guide/install/linux.html) for further information on installing miniconda on a user-writable directory. 
+We will go over a typical pipeline setup scenario in which you connect to a remote server, install miniconda (or use a local installation of anaconda), and download the pipeline source code. In cases where the Anaconda installation on your computing cluster is not updated or you are experiencing errors while installing packages, we recommend miniconda. Use [this site](https://conda.io/projects/conda/en/latest/user-guide/install/linux.html) for further information on installing miniconda in a user-writable directory.
 
 ```bash
 # Download miniconda
 wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.1.0-1-Linux-x86_64.sh
-# Run installation, follow default options. However, depending on your computing cluster when you are prompted, you should consider changing the 
-# location of the installation to somewhere that is not your home directory which can have storage limits.
+# Run installation, follow default options. Depending on your computing cluster,
+# consider changing the install location to somewhere other than your home directory,
+# which can have storage limits.
 bash Miniconda3-py310_23.1.0-1-Linux-x86_64.sh
 
-# Download AMR++ repository
-git clone https://github.com/Microbial-Ecology-Group/AMRplusplus.git
+# Download the VARIANT++ repository
+git clone https://github.com/Microbial-Ecology-Group/VARIANTplusplus.git
 
-# Navigate into direcotry
-cd AMRplusplus
+# Navigate into the directory
+cd VARIANTplusplus
 
-# Test AMR++ by specifying the "conda" profile. If your computing cluster uses the slurm scheduler, use the "conda_slurm" profile.
-nextflow run main_AMR++.nf -profile conda
+# Create and activate the conda environment
+conda env create -f envs/VARIANT++_env.yaml
+conda activate VARIANT++_env
+
+# Run VARIANT++ using the "local" profile. If your computing cluster uses the
+# slurm scheduler, use the "local_slurm" profile instead.
+nextflow run main_VARIANT++.nf -profile local --pipeline eval_qc
 ```
 
-Optionally, you can create the conda environment prior to running AMR++.
+There's one tool, Themisto, that ships as a compiled binary in the repo (`bin/themisto`) rather than through conda. To make it available on your `$PATH`:
 
 ```bash
-# If you haven't created the conda AMR++ environment as instructed above, go ahead and do that here:
-# If you have mamba installed, you can swap "conda" with "mamba" for faster installation.
-conda env create -f envs/AMR++_env.yaml
-# Now activate the conda environment
-conda activate activate AMR++_env
-
-# Now, the tools will be available "locally" so we must run AMR++ using the "local" profile.
-nextflow run main_AMR++.nf -profile local
-
+cd bin/
+pwd
+echo 'export PATH="/path/to/your/VARIANTplusplus/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-## Run AMR++ using Singularity
+## Run VARIANT++ using Singularity
 
 Requirements:
 * Nextflow
 * Singularity
 
-Often, HPCs will have singularity installed this will allow AMR++ to download and use a singularity container with all of the pre-installed software requirements.
-
 ```bash
-
-# Download AMR++ repository
-git clone https://github.com/Microbial-Ecology-Group/AMRplusplus.git
-
-# Navigate into direcotry
-cd AMRplusplus
+# Download the VARIANT++ repository
+git clone https://github.com/Microbial-Ecology-Group/VARIANTplusplus.git
+cd VARIANTplusplus
 
 # Run command with singularity profile
-nextflow run main_AMR++.nf -profile singularity
-
-# Alternatively, you can pull the singularity container first like this:
-singularity pull docker://enriquedoster/amrplusplus:latest
-
-# Then, specify the path to the singularity image.
-nextflow run main_AMR++.nf -profile local -with-singularity amrplusplus_latest.sif
-
+nextflow run main_VARIANT++.nf -profile singularity --pipeline eval_qc
 ```
 
-## Run AMR++ using Docker
+**Known limitation:** the `singularity`/`singularity_slurm`/`docker` profiles currently point at `enriquedoster/amrplusplus:latest`, the container image inherited from the AMR++ fork. It has not been verified to include Themisto, mSWEEP, or mGEMS, which the GSV_5/GSV_5_mGEMS steps require. Until an updated VARIANT++ image is published, the conda installation above is the recommended path.
+
+## Run VARIANT++ using Docker
 
 Requirements:
 * Nextflow
 * Docker
 
-Like Singularity, Docker is another tool management option that is often available on HPCs and this can be used by AMR++ to download a docker container with all of the pre-installed software requirements.
-
 ```bash
+git clone https://github.com/Microbial-Ecology-Group/VARIANTplusplus.git
+cd VARIANTplusplus
 
-# Download AMR++ repository
-git clone https://github.com/Microbial-Ecology-Group/AMRplusplus.git
-
-# Navigate into directory
-cd AMRplusplus
-
-# Run command with docker profile
-nextflow run main_AMR++.nf -profile docker
-
+nextflow run main_VARIANT++.nf -profile docker --pipeline eval_qc
 ```
 
-
+See the known limitation noted above — verify the container includes Themisto/mSWEEP/mGEMS before relying on it for GSV_5.
 
 ## Local installation of tools
 
 Requirements:
-* All [software requirements](https://github.com/Microbial-Ecology-Group/AMRplusplus/blob/master/docs/requirements.md)
+* All [software requirements](requirements.md)
 * Nextflow
 
-
-If Singularity cannot be installed, or perhaps your computing cluster has all of the required tools, configure the "config/local.config" file to specify the absolute PATH to each required bioinformatic tool. Or if you can add all of the relevant paths to your $PATH environment variable, which in some cases means loading the correct modules, then you can just leave the name of each tool without the path. Finally, change the flag after "-profile" to "local" when running the pipeline.
+If none of the above options work for your computing cluster, configure `config/local.config` to specify the absolute path to each required bioinformatic tool, or add them to your `$PATH` (e.g. by loading the appropriate modules). Then run with the "local" profile:
 
 ```bash
-nextflow run main_AMR++.nf -profile local
- ```
+nextflow run main_VARIANT++.nf -profile local --pipeline eval_qc
+```

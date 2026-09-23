@@ -42,6 +42,12 @@ def helpMessage() {
         - GSV_4: Read filtration with Kraken2 (--merged_reads)
         - GSV_5: GSV Classification with themisto/mSweep (--merged_reads)
 
+    Additional pipeline options:
+        - eval_qc: Run FastQC + MultiQC on raw reads (--reads)
+        - merge: Merge paired-end reads with FLASH (--reads)
+        - full_GSV_pipeline: Run all GSV steps end-to-end (--reads, --host)
+        - GSV_5_mGEMS: GSV classification via mGEMS binning (--merged_reads)
+
     To run a specific pipeline/subworkflow, use the "--pipeline" option followed by the pipeline name:
         nextflow run main_VARIANT++.nf --pipeline <pipeline_name> [other_options]
 
@@ -69,20 +75,6 @@ def helpMessage() {
 
 // Load subworkflows
 include { FASTQ_QC_WF } from './subworkflows/fastq_information.nf'
-include { FASTQ_TRIM_WF } from './subworkflows/fastq_QC_trimming.nf'
-include { FASTQ_ALIGN_TO_ALL_WF } from './subworkflows/fastq_align_all_to_all.nf'
-include { FASTQ_ONLY_ALIGN_TO_ALL_WF } from './subworkflows/fastq_only_align_all_to_all.nf'
-include { FASTQ_RM_HOST_WF } from './subworkflows/fastq_host_removal.nf' 
-include { FASTQ_KRAKEN_WF } from './subworkflows/fastq_microbiome.nf'
-include { FASTQ_SKESA_WF } from './subworkflows/fastq_assembly.nf' // might erase
-include { FASTQ_KRAKEN_EXTRACT_WF } from './subworkflows/fastq_microbiome_only_extract.nf'
-include { FASTQ_KRAKEN_SINGLE_SPECIES_WF } from './subworkflows/fastq_microbiome_single_extract_species.nf'
-include { FASTQ_KRAKEN_DOUBLE_SPECIES_WF } from './subworkflows/fastq_microbiome_double_extract_species.nf'
-include { FASTQ_KRAKEN_ONLY_CONFIRMATION_WF } from './subworkflows/fastq_microbiome_only_confirmation.nf'
-include { FASTQ_PSEUDOALIGN_WF } from './subworkflows/fastq_pseudoalign.nf'
-include { FASTQ_MSWEEP_WF } from './subworkflows/fastq_pseudoalign.nf'
-include { FASTQ_DEDUP_WF } from './subworkflows/fastq_dedup.nf'
-include { FASTQ_DEDUP_BBMAP_WF } from './subworkflows/fastq_dedup_bbmap.nf'
 include { FLASH_MERGE_WF } from './subworkflows/GSV_flash_reads.nf'
 include { GSV_PIPELINE_WF } from './subworkflows/GSV_full_pipeline.nf'
 include { GSV_1_WF } from './subworkflows/GSV_step_1_qc_merge.nf'
@@ -117,69 +109,15 @@ workflow {
 
         println helpMessage()
 
-        log.info """\
-        ===================================
-        Running a demonstration of VARIANT++
-        ===================================
-        """
-        //run with demo params, use params.config
-        FASTQ_DEDUP_WF(fastq_files)
-        
     }
     else if(params.pipeline == "demo") {
-        log.info """\
-        ===================================
-        Running a demonstration of VARIANT++
-        ===================================
-        """
-        //run with demo params, use params.config
-        FASTQ_DEDUP_WF(fastq_files)
-    } 
-    else if(params.pipeline == "dedup_cdhit") {
 
-        FASTQ_DEDUP_WF( fastq_files )
-    } 
-    else if(params.pipeline == "dedup") {
+        println helpMessage()
 
-        FASTQ_DEDUP_BBMAP_WF( fastq_files )
-    } 
+    }
     else if(params.pipeline == "eval_qc") {
-
         FASTQ_QC_WF( fastq_files )
-    } 
-    else if(params.pipeline == "trim_qc") {
-
-        FASTQ_TRIM_WF( fastq_files )
     }
-    else if(params.pipeline == "rm_host") {
-
-        FASTQ_RM_HOST_WF(params.host, fastq_files )
-    } 
-    else if(params.pipeline == "align_to_all") {
-
-        FASTQ_ALIGN_TO_ALL_WF( fastq_files, params.amr)
-    }  
-    else if(params.pipeline == "kraken") {
-       FASTQ_KRAKEN_WF(fastq_files, params.kraken_db)
-    }
-    else if(params.pipeline == "only_extract") {
-       FASTQ_KRAKEN_EXTRACT_WF(fastq_files, params.kraken_db)
-    }
-    else if(params.pipeline == "only_confirmation") {
-       FASTQ_KRAKEN_ONLY_CONFIRMATION_WF(fastq_files, params.confirmation_db)
-    }
-    else if(params.pipeline == "single_extract") {
-       FASTQ_KRAKEN_SINGLE_SPECIES_WF(fastq_files, params.kraken_db, params.confirmation_db)
-    }
-    else if(params.pipeline == "double_extract") {
-       FASTQ_KRAKEN_DOUBLE_SPECIES_WF(fastq_files, params.kraken_db, params.krakendb_inter, params.confirmation_db)
-    }
-    else if(params.pipeline == "assembly") {
-        FASTQ_SKESA_WF( fastq_files )
-    }
-    else if(params.pipeline == "only_align_to_all") {
-        FASTQ_ONLY_ALIGN_TO_ALL_WF( fastq_files, params.genome_ref_dir)
-    } 
     else if(params.pipeline == "full_GSV_pipeline") {
         GSV_PIPELINE_WF( fastq_files,params.host)
     } 
@@ -297,12 +235,6 @@ workflow {
     }       
     else if(params.pipeline == "merge") {
         FLASH_MERGE_WF( fastq_files)
-    } 
-    else if(params.pipeline == "pseudoalign") {
-        FASTQ_PSEUDOALIGN_WF ( fastq_files)
-    }
-    else if(params.pipeline == "msweep") {
-        FASTQ_MSWEEP_WF( fastq_files )
     }
     else {
         log.error """
