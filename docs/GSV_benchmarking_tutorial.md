@@ -34,6 +34,15 @@ Off-target genomes from other species in the same family are processed in parall
     - [3.2.4 Run script to classify GSVs in simulated samples](#324-run-script-to-classify-gsvs-in-simulated-samples)
 
 - [Step 4: Analyzing benchmarking results](#step-4-analyzing-benchmarking-results)
+  - [4.1 Parse msweep results without a filter](#41-parse-msweep-results-without-a-filter)
+  - [4.2 Analyze off-target results and false positive rate in R](#42-analyze-off-target-results-and-false-positive-rate-in-r)
+  - [4.3 Evaluate classification performance](#43-evaluate-classification-performance)
+
+- [Step 5: Update VARIANT++ with your benchmarked GSVs](#step-5-update-variant-with-your-benchmarked-gsvs)
+  - [5.1 Replace the Themisto index](#51-replace-the-themisto-index)
+  - [5.2 Replace the mSWEEP clustering file](#52-replace-the-msweep-clustering-file)
+  - [5.3 Update the Kraken2 taxa and confidence in params.config](#53-update-the-kraken2-taxa-and-confidence-in-paramsconfig)
+  - [5.4 Caveats](#54-caveats)
 
 # Step 1: On-target genomes
 
@@ -333,3 +342,69 @@ Using `results_test_summarized.txt`, filter to the **on-target** combined rows (
 ### 4.3.1 Pick optimal GSV number
 
 Cross-reference the off-target false-positive-rate-by-cluster table from 4.2 against the on-target precision/recall-by-cluster table from 4.3: pick the `classification_cluster` (number of GSVs) and Kraken confidence that keep the false-positive rate acceptably low while maximizing recall and precision. Lock in that cluster count, its Kraken confidence, and the corresponding `GSV_rel_map` thresholds in `parse_msweep_results.py` before moving on to your full-scale simulation run.
+
+# Step 5: Update VARIANT++ with your benchmarked GSVs
+
+Once you've picked the optimal number of GSVs, you can point the main VARIANT++ pipeline at your new resources instead of the default *Mannheimia haemolytica* files that ship with the repository. Three things need to change: the Themisto index, the mSWEEP clustering file, and the Kraken2 taxa used to extract reads before GSV classification.
+
+## 5.1 Replace the Themisto index
+
+Use the Themisto index you built in [3.1.2](#312-make-themisto-database) (e.g. `2025_themisto_index_no.tdbg` and `2025_themisto_index_no.tcolors`). Either copy both files into `data/themisto/` or leave them where they are, and update these parameters in `params.config`:
+
+```
+themisto_index = "/path/to/your/themisto_index_dir"
+themisto_index_prefix = "2025_themisto_index_no"
+```
+
+`themisto_index` is the **directory** that contains the index files and `themisto_index_prefix` is the file name without the `.tdbg`/`.tcolors` extension.
+
+## 5.2 Replace the mSWEEP clustering file
+
+mSWEEP expects a clustering file with **one GSV id per line and no header**, in exactly the same order as the genomes in the Themisto input file (`2025_themisto_input_genomes.txt`). Extract the `k_#` column that matches your chosen GSV number from the ordered ANI annotation file from [3.1.3](#313-confirm-ani-clusters-are-in-same-order-as-themisto-db). For example, if you picked 8 GSVs:
+
+```r
+ani <- read.table("2025_ANI_groupings_2-30.tsv", sep = "\t", header = TRUE,
+                  stringsAsFactors = FALSE, check.names = FALSE)
+
+# Confirm the genome order matches the themisto input file
+# (the first column holds the full path to each genome)
+themisto_order <- readLines("2025_themisto_input_genomes.txt")
+stopifnot(identical(basename(ani[[1]]), basename(themisto_order)))
+
+write.table(ani$k_8, "2025_msweep_annotations_k8.tsv",
+            row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+Then update `params.config`:
+
+```
+clustering_file = "/path/to/your/2025_msweep_annotations_k8.tsv"
+```
+
+If the number of lines in the clustering file doesn't match the number of genomes in the Themisto index, or the order is off, mSWEEP will either fail or silently assign reads to the wrong GSVs, so double check this step.
+
+## 5.3 Update the Kraken2 taxa and confidence in `params.config`
+
+Before GSV classification, VARIANT++ uses Kraken2 (`--pipeline GSV_4`) to extract only the reads assigned to your taxa of interest. By default this is set to *M. haemolytica* (NCBI taxid `75985`). Change `extract_reads_taxid` to the NCBI taxid of the species (or other taxonomic level) whose genomes you used to build the GSVs, and set `kraken_confidence` to the value you picked in [4.3.1](#431-pick-optimal-gsv-number):
+
+```
+kraken_confidence = 0.1
+
+extract_reads_taxid = "75985"
+extract_reads_options_single = "--include-children"
+extract_reads_options_double = "--include-children"
+```
+
+Keep the `--include-children` flag so that reads assigned to strains/subspecies below your taxid are also extracted. Make sure the taxid and Kraken database you use here are the same ones used during benchmarking, otherwise the false-positive rates and `GSV_rel_map` thresholds you calculated won't apply.
+
+Finally, use the updated `parse_msweep_results.py` (with your `GSV_rel_map`) to filter the mSWEEP results from your real samples the same way you did in [4.2.1](#421-pick-filtration-rates-for-each-gsv).
+
+## 5.4 Caveats
+
+This benchmarking workflow assumes that whole-genome sequences, clustered by ANI, contain enough signal to tell GSVs apart from short reads. That won't always hold, and poor precision/recall or high false-positive rates at every cluster number are a sign that this approach may not be a good fit for your taxa. Some common reasons:
+
+- **Whole-genome sequences aren't ideal for classification.** For some taxa, most of the genome is shared across GSVs and the differences are concentrated in a few regions (e.g. specific genes, mobile elements, or accessory genome content). In these cases, other workflows that first identify the genomic regions that best discriminate between groups, and classify using only those regions, should be considered.
+- **Not enough genomes were available.** If there are only a few reference genomes for a species, or some GSVs are represented by one or two genomes, the clusters may not capture the real diversity of the population and simulations won't reflect what you'd see in real samples.
+- **Too much similarity between the genomes being clustered.** If genomes are nearly identical (very high ANI across the whole species), increasing the number of GSV clusters splits genomes that can't actually be distinguished, and reads will be ambiguously assigned between them. In that case, fewer GSVs or a different clustering approach may be more appropriate.
+- **Off-target genomes may be under-represented.** The false-positive rate is only as good as the off-target genomes included. Closely related species without many genome assemblies, or that are common in your sample type, may produce more false positives in real data than in the simulations.
+- **Simulations aren't real samples.** Simulated reads don't fully capture sequencing error profiles, host contamination, or the complexity of real microbial communities, so validating with mock communities or well-characterized isolates is recommended when possible.
